@@ -613,7 +613,7 @@
   let generatedPages = []; // array of <canvas> elements, one per exported page
 
   // ---------- canvas helpers ----------
-  const PAGE_W = 900, PAGE_H = 1300; // matches the source file's exact 7.5in x 10.83in ratio
+  const PAGE_W = 900, PAGE_H = 1273; // true ISO A4 ratio (210:297) so Excel's A4 paper size matches exactly, no print scaling mismatch
 
   function loadImage(src){
     return new Promise((resolve,reject)=>{
@@ -854,9 +854,12 @@
 
   async function generateXlsxFile(pages, names){
     const workbook = new ExcelJS.Workbook();
-    // A4 at 96dpi (794 x 1123 px) — canvas is already at the A4 aspect ratio,
-    // so scaling to this size fills a real A4 page edge-to-edge, no shrinking.
-    const A4W = 794, A4H = 1123;
+    // Image is sized to the actual PRINTABLE area (A4 minus margins) at 96dpi,
+    // so it fits exactly at 100% scale even if a given Excel/printer ignores
+    // "fit to page" — no more relying on that scaling to make it match.
+    const MARGIN_IN = 0.2;
+    const A4W = Math.round((8.2677 - MARGIN_IN*2) * 96); // 755
+    const A4H = Math.round((11.6929 - MARGIN_IN*2) * 96); // 1084
     const usedNames = new Set();
     pages.forEach((canvas, idx)=>{
       let base = sanitizeSheetName((names && names[idx]) || ('page'+(idx+1)));
@@ -872,7 +875,7 @@
         paperSize: 9, // A4
         orientation: 'portrait',
         fitToPage: true, fitToWidth: 1, fitToHeight: 1,
-        margins: { left:0.15, right:0.15, top:0.15, bottom:0.15, header:0, footer:0 },
+        margins: { left:MARGIN_IN, right:MARGIN_IN, top:MARGIN_IN, bottom:MARGIN_IN, header:0, footer:0 },
         printArea: 'A1:L45',
         showGridLines: false,     // don't print cell gridlines (this was the black border)
         showRowColHeaders: false  // don't print row/column headers either
