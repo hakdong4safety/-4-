@@ -157,6 +157,8 @@
   .modal-box{background:#fff;border-radius:18px;padding:20px;max-width:460px;width:100%;max-height:88vh;overflow:auto;}
   .modal-title{font-size:15.5px;font-weight:800;color:var(--navy);margin-bottom:12px;}
   .modal-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+  .modal-photo-item{display:flex;flex-direction:column;gap:5px;}
+  .modal-company-input{width:100%;padding:6px 8px;font-size:12px;border:1px solid var(--line-soft);border-radius:7px;background:#fff;}
   .modal-photo-slot{position:relative;border:1.5px dashed var(--line-soft);border-radius:12px;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#FAFBFB;}
   .modal-photo-slot img{width:100%;height:100%;object-fit:cover;}
   .modal-photo-slot .rm-btn{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;width:24px;height:24px;border-radius:50%;font-size:13px;line-height:1;}
@@ -292,10 +294,6 @@
 <div class="modal-overlay" id="slotModal">
   <div class="modal-box">
     <div class="modal-title" id="modalTitle">사진 등록</div>
-    <div id="modalCompanyWrap" style="display:none;">
-      <label class="field-label">업체명</label>
-      <input type="text" id="modalCompanyInput" placeholder="예: OO건설">
-    </div>
     <div id="modalCaptionWrap" style="display:none;">
       <label class="field-label">내용</label>
       <select id="modalCaptionSelect"></select>
@@ -438,7 +436,7 @@
   }
 
   function emptyDay(date){
-    return { date, A: [null,null,null,null], B: B_CATEGORIES.map(()=>({photos:[], company:''})) };
+    return { date, A: [null,null,null,null], B: B_CATEGORIES.map(()=>({photos:[]})) };
   }
   function normalizeDay(d, date){
     const nd = emptyDay(date);
@@ -468,8 +466,8 @@
   async function saveASlot(date, idx, slotData){
     return await sSet(`day:${date}:A${idx}`, JSON.stringify(slotData));
   }
-  async function saveBCategory(date, idx, photosArr, company){
-    return await sSet(`day:${date}:B${idx}`, JSON.stringify({photos:photosArr, company: company||''}));
+  async function saveBCategory(date, idx, photosArr){
+    return await sSet(`day:${date}:B${idx}`, JSON.stringify({photos:photosArr}));
   }
 
   async function loadSettings(){
@@ -608,9 +606,8 @@
       const count = currentDay.B[i].photos.length;
       const has = count > 0;
       const setCount = Math.ceil(count/2);
-      const company = currentDay.B[i].company;
       const badgeText = has ? (setCount > 1 ? `등록완료 (${count}장·${setCount}세트)` : `등록완료 (${count}장)`) : '미등록';
-      const titleText = company ? `[${escapeHtml(company)}] ${escapeHtml(cat)}` : escapeHtml(cat);
+      const titleText = escapeHtml(cat);
       html += `<div class="cat-card" data-cat="${i}">
         <div class="cat-title">${titleText}</div>
         <div class="cat-badge ${has?'on':'off'}">${badgeText}</div>
@@ -869,7 +866,8 @@
       ctx.fillStyle = '#16305B';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const [dy2,dm2,dd2] = entry.date.split('-');
-      const capText = `${dy2}.${dm2}.${dd2} ${entry.company ? '['+entry.company+'] ' : ''}${entry.category}`;
+      const photoCompany = photosChunk[i].company;
+      const capText = `${dy2}.${dm2}.${dd2} ${photoCompany ? '['+photoCompany+'] ' : ''}${entry.category}`;
       const { lines: capLines, lineHeight: capLH } = fitTextToBox(ctx, capText, boxW-16, capH-8, Math.round(capH*0.42), 10);
       const capStartY = capY+capH/2 - (capLines.length-1)*capLH/2;
       capLines.forEach((ln,idx)=>ctx.fillText(ln, PAGE_W/2, capStartY+idx*capLH));
@@ -974,16 +972,18 @@
         const c2 = ws.getCell('B23'); c2.value = '사 진 대 지'; c2.font = titleStyle; c2.alignment = centerMid;
 
         const [yy,mm,dd] = spec.entry.date.split('-');
-        const capText = `${yy}.${mm}.${dd} ${spec.entry.company ? '['+spec.entry.company+'] ' : ''}${spec.entry.category}`;
+        function capTextFor(photo){
+          return `${yy}.${mm}.${dd} ${photo.company ? '['+photo.company+'] ' : ''}${spec.entry.category}`;
+        }
         if(spec.chunk[0]){
-          const cc1 = ws.getCell('B20'); cc1.value = capText; cc1.font = capStyle; cc1.alignment = centerMid;
+          const cc1 = ws.getCell('B20'); cc1.value = capTextFor(spec.chunk[0]); cc1.font = capStyle; cc1.alignment = centerMid;
           const dataUrl = spec.chunk[0].dataUrl;
           const base64 = dataUrl.split(',')[1];
           const imgId = workbook.addImage({ base64, extension:'png' });
           ws.addImage(imgId, { tl:{col:1,row:2}, br:{col:10,row:19} });
         }
         if(spec.chunk[1]){
-          const cc2 = ws.getCell('B42'); cc2.value = capText; cc2.font = capStyle; cc2.alignment = centerMid;
+          const cc2 = ws.getCell('B42'); cc2.value = capTextFor(spec.chunk[1]); cc2.font = capStyle; cc2.alignment = centerMid;
           const dataUrl = spec.chunk[1].dataUrl;
           const base64 = dataUrl.split(',')[1];
           const imgId = workbook.addImage({ base64, extension:'png' });
@@ -1031,7 +1031,7 @@
     }
     B_CATEGORIES.forEach((cat,i)=>{
       if(selectedExport.has('B'+i)){
-        entries.push({ formType:'B', category: cat, company: exportDay.B[i].company||'', date: exportDate, photos: exportDay.B[i].photos });
+        entries.push({ formType:'B', category: cat, date: exportDate, photos: exportDay.B[i].photos });
       }
     });
 
@@ -1096,7 +1096,6 @@
     const existing = currentDay.A[slotIdx];
     modalPhotos = existing ? [{dataUrl:existing.dataUrl, caption:existing.caption}] : [];
     modalTitle.textContent = `사진등록 ${slotIdx+1} · 일일 작업계획서 점검 결과 보고`;
-    modalCompanyWrap.style.display = 'none';
     modalCaptionWrap.style.display = 'block';
     buildCaptionOptions(modalPhotos[0] ? modalPhotos[0].caption : '');
     renderModalPhotoGrid(1);
@@ -1117,38 +1116,36 @@
     }
   });
 
-  const modalCompanyWrap = document.getElementById('modalCompanyWrap');
-  const modalCompanyInput = document.getElementById('modalCompanyInput');
-
-  function updateBModalTitle(catIdx){
-    const cat = B_CATEGORIES[catIdx];
-    const company = modalCompanyInput.value.trim();
-    modalTitle.textContent = company ? `사진대지 · [${company}] ${cat}` : `사진대지 · ${cat}`;
-  }
-
   function openBCategoryModal(catIdx){
     modalMode = {type:'B', cat:catIdx};
-    modalPhotos = currentDay.B[catIdx].photos.map(p=>({dataUrl:p.dataUrl}));
     const cat = B_CATEGORIES[catIdx];
     const usesCompany = B_COMPANY_CATEGORIES.has(cat);
-    modalCompanyWrap.style.display = usesCompany ? 'block' : 'none';
-    modalCompanyInput.value = usesCompany ? (currentDay.B[catIdx].company || '') : '';
-    updateBModalTitle(catIdx);
+    modalPhotos = currentDay.B[catIdx].photos.map(p=>({dataUrl:p.dataUrl, company:p.company||''}));
+    modalMode.showCompany = usesCompany;
+    modalTitle.textContent = `사진대지 · ${cat}`;
     modalCaptionWrap.style.display = 'none';
     renderModalPhotoGrid(null);
     modalOverlay.classList.add('show');
   }
-  modalCompanyInput.addEventListener('input', ()=>{
-    if(modalMode && modalMode.type === 'B') updateBModalTitle(modalMode.cat);
-  });
 
   function renderModalPhotoGrid(maxCount){
     modalPhotoGrid.innerHTML = '';
+    const showCompany = modalMode && modalMode.type === 'B' && modalMode.showCompany;
     modalPhotos.forEach((p, idx)=>{
+      const item = document.createElement('div');
+      item.className = 'modal-photo-item';
       const slot = document.createElement('div');
       slot.className = 'modal-photo-slot';
       slot.innerHTML = `<img src="${p.dataUrl}"><button class="rm-btn" data-idx="${idx}">✕</button>`;
-      modalPhotoGrid.appendChild(slot);
+      item.appendChild(slot);
+      if(showCompany){
+        const inp = document.createElement('input');
+        inp.type = 'text'; inp.className = 'modal-company-input';
+        inp.placeholder = '업체명'; inp.value = p.company || '';
+        inp.addEventListener('input', ()=>{ modalPhotos[idx].company = inp.value; });
+        item.appendChild(inp);
+      }
+      modalPhotoGrid.appendChild(item);
     });
     if(!maxCount || modalPhotos.length < maxCount){
       const addBtn = document.createElement('div');
@@ -1197,11 +1194,9 @@
         currentDay.A[modalMode.slot] = slotData;
         ok = await saveASlot(registerDate, modalMode.slot, slotData);
       } else {
-        const photosArr = modalPhotos.map(p=>({dataUrl:p.dataUrl}));
-        const company = modalCompanyWrap.style.display !== 'none' ? modalCompanyInput.value.trim() : '';
+        const photosArr = modalPhotos.map(p=>({dataUrl:p.dataUrl, company:(p.company||'').trim()}));
         currentDay.B[modalMode.cat].photos = photosArr;
-        currentDay.B[modalMode.cat].company = company;
-        ok = await saveBCategory(registerDate, modalMode.cat, photosArr, company);
+        ok = await saveBCategory(registerDate, modalMode.cat, photosArr);
       }
       if(!ok){ toast('저장 실패. Firebase 설정을 확인해주세요'); return; }
       toast('저장 완료');
