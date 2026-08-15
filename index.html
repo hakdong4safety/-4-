@@ -613,7 +613,7 @@
   let generatedPages = []; // array of <canvas> elements, one per exported page
 
   // ---------- canvas helpers ----------
-  const PAGE_W = 900, PAGE_H = 1273; // true ISO A4 ratio (210:297) so Excel's A4 paper size matches exactly, no print scaling mismatch
+  const PAGE_W = 900, PAGE_H = 1426; // custom page ratio: 22.4cm width x 35.49cm height
 
   function loadImage(src){
     return new Promise((resolve,reject)=>{
@@ -854,12 +854,14 @@
 
   async function generateXlsxFile(pages, names){
     const workbook = new ExcelJS.Workbook();
-    // Image is sized to the actual PRINTABLE area (A4 minus margins) at 96dpi,
+    // Custom page size: 22.4cm wide x 35.49cm tall.
+    // Image is sized to the actual PRINTABLE area (page minus margins) at 96dpi,
     // so it fits exactly at 100% scale even if a given Excel/printer ignores
     // "fit to page" — no more relying on that scaling to make it match.
+    const PAGE_W_IN = 22.4/2.54, PAGE_H_IN = 35.49/2.54;
     const MARGIN_IN = 0.2;
-    const A4W = Math.round((8.2677 - MARGIN_IN*2) * 96); // 755
-    const A4H = Math.round((11.6929 - MARGIN_IN*2) * 96); // 1084
+    const A4W = Math.round((PAGE_W_IN - MARGIN_IN*2) * 96);
+    const A4H = Math.round((PAGE_H_IN - MARGIN_IN*2) * 96);
     const usedNames = new Set();
     pages.forEach((canvas, idx)=>{
       let base = sanitizeSheetName((names && names[idx]) || ('page'+(idx+1)));
@@ -872,7 +874,8 @@
       const ws = workbook.addWorksheet(sheetName);
       ws.views = [{ showGridLines:false }];
       ws.pageSetup = {
-        paperSize: 9, // A4
+        paperWidth: '22.4cm',
+        paperHeight: '35.49cm',
         orientation: 'portrait',
         fitToPage: true, fitToWidth: 1, fitToHeight: 1,
         margins: { left:MARGIN_IN, right:MARGIN_IN, top:MARGIN_IN, bottom:MARGIN_IN, header:0, footer:0 },
@@ -881,7 +884,7 @@
         showRowColHeaders: false  // don't print row/column headers either
       };
       // give the sheet real cell dimensions covering the image area, so the
-      // picture is part of the used range and prints/copies as a full A4 page
+      // picture is part of the used range and prints/copies as a full page
       for(let c=1;c<=12;c++) ws.getColumn(c).width = 8.8;
       for(let r=1;r<=45;r++) ws.getRow(r).height = 18.7;
       const dataUrl = canvas.toDataURL('image/png');
