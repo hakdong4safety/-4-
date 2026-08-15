@@ -660,6 +660,24 @@
     return lines;
   }
 
+  // Picks the largest font size (down to minSize) whose wrapped text still
+  // fits inside maxWidth x maxHeight, so captions use the box as fully as
+  // possible and shrink automatically when there's a lot of text.
+  function fitTextToBox(ctx, text, maxWidth, maxHeight, maxSize, minSize, weight, family){
+    family = family || '"Malgun Gothic","Apple SD Gothic Neo",sans-serif';
+    weight = weight || 'bold';
+    for(let size=maxSize; size>=minSize; size--){
+      ctx.font = `${weight} ${size}px ${family}`;
+      const lineHeight = size*1.28;
+      const maxLines = Math.max(1, Math.floor(maxHeight/lineHeight));
+      const lines = wrapTextChars(ctx, text, maxWidth, maxLines);
+      const totalHeight = lines.length*lineHeight;
+      if(totalHeight <= maxHeight || size === minSize){
+        return { size, lines, lineHeight };
+      }
+    }
+  }
+
   // ---------- page renderers (mirror the physical sample sheets) ----------
   // Exact positions/sizes below are taken directly from the reference 06_29.pptx
   // (fractions of slide width/height), so the output matches it precisely.
@@ -712,7 +730,7 @@
     // logo (exact box from source file)
     try{
       const logoImg = await loadImage(settings.logo || DEFAULT_LOGO);
-      ctx.drawImage(logoImg, 0.2127*PAGE_W, 0.7411*PAGE_H, 0.5911*PAGE_W, 0.0538*PAGE_H);
+      const { dx, dy, dw, dh } = drawContainFit(ctx, logoImg, 0.2127*PAGE_W, 0.7411*PAGE_H, 0.5911*PAGE_W, 0.0538*PAGE_H);
     }catch(e){ console.error('logo draw failed', e); }
 
     // site name (28pt bold)
@@ -742,9 +760,11 @@
     const gridX = PAGE_W*0.06, gridY = hbY+hbH+PAGE_H*0.02, gridW = PAGE_W*0.88;
     const gap = PAGE_W*0.025;
     const cellW = (gridW-gap)/2;
-    const imgH = cellW*0.75;
-    const capH = PAGE_H*0.075;
-    const cellH = imgH + capH + 10;
+    const bottomMargin = PAGE_H*0.038; // just enough room for the page number
+    const totalGridH = PAGE_H - gridY - bottomMargin;
+    const cellH = (totalGridH - gap) / 2; // 2 rows, fills all the way to bottomMargin
+    const capH = cellH*0.20;
+    const imgH = cellH - capH - 8;
 
     for(let i=0;i<chunk.length;i++){
       const col = i%2, row = Math.floor(i/2);
@@ -757,13 +777,12 @@
       ctx.strokeStyle = '#999'; ctx.lineWidth = 1; ctx.strokeRect(cx,cy,cellW,imgH);
       const capY = cy+imgH+8;
       ctx.strokeStyle = '#2255A4'; ctx.lineWidth = 1.5; ctx.strokeRect(cx,capY,cellW,capH);
-      ctx.fillStyle = '#16305B'; ctx.font = '13px "Malgun Gothic",sans-serif';
+      ctx.fillStyle = '#16305B';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const text = '내용 : ' + resolvePhrase(chunk[i].caption, entry.date);
-      const lines = wrapTextChars(ctx, text, cellW-14, 3);
-      const lh = 17;
-      const startY = capY+capH/2 - (lines.length-1)*lh/2;
-      lines.forEach((ln,idx)=>ctx.fillText(ln, cx+cellW/2, startY+idx*lh));
+      const { lines, lineHeight } = fitTextToBox(ctx, text, cellW-16, capH-10, 22, 9);
+      const startY = capY+capH/2 - (lines.length-1)*lineHeight/2;
+      lines.forEach((ln,idx)=>ctx.fillText(ln, cx+cellW/2, startY+idx*lineHeight));
     }
 
     ctx.fillStyle = '#666'; ctx.font = '13px sans-serif';
@@ -817,10 +836,13 @@
       const capY = blockY+blockH-capH;
       ctx.strokeStyle = '#16305B'; ctx.lineWidth = 1.5;
       ctx.strokeRect(boxX, capY, boxW, capH);
-      ctx.fillStyle = '#16305B'; ctx.font = `bold ${Math.round(capH*0.42)}px "Malgun Gothic",sans-serif`;
+      ctx.fillStyle = '#16305B';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const [dy2,dm2,dd2] = entry.date.split('-');
-      ctx.fillText(`${dy2}.${dm2}.${dd2} ${entry.category}`, PAGE_W/2, capY+capH/2);
+      const capText = `${dy2}.${dm2}.${dd2} ${entry.category}`;
+      const { lines: capLines, lineHeight: capLH } = fitTextToBox(ctx, capText, boxW-16, capH-8, Math.round(capH*0.42), 10);
+      const capStartY = capY+capH/2 - (capLines.length-1)*capLH/2;
+      capLines.forEach((ln,idx)=>ctx.fillText(ln, PAGE_W/2, capStartY+idx*capLH));
     }
 
     return canvas;
@@ -851,8 +873,13 @@
         paperSize: 9, // A4
         orientation: 'portrait',
         fitToPage: true, fitToWidth: 1, fitToHeight: 1,
-        margins: { left:0.15, right:0.15, top:0.15, bottom:0.15, header:0, footer:0 }
+        margins: { left:0.15, right:0.15, top:0.15, bottom:0.15, header:0, footer:0 },
+        printArea: 'A1:P60'
       };
+      // give the sheet real cell dimensions covering the image area, so the
+      // picture is part of the used range and prints/copies as a full A4 page
+      for(let c=1;c<=16;c++) ws.getColumn(c).width = 8.8;
+      for(let r=1;r<=60;r++) ws.getRow(r).height = 18.7;
       const dataUrl = canvas.toDataURL('image/png');
       const base64 = dataUrl.split(',')[1];
       const imgId = workbook.addImage({ base64, extension:'png' });
