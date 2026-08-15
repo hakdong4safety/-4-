@@ -7,6 +7,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <style>
   .config-warning{background:#C0392B;color:#fff;text-align:center;font-size:12.5px;font-weight:700;padding:8px 10px;display:none;}
   :root{
@@ -139,6 +140,8 @@
 
   /* ===== Export preview (mirrors physical sheet) ===== */
   #exportPreview{background:#DDE2E5;padding:18px 10px;border-radius:14px;}
+  .page-img-wrap{background:#fff;max-width:520px;margin:0 auto 18px;box-shadow:0 3px 10px rgba(20,30,40,.18);border-radius:4px;overflow:hidden;}
+  .page-img-wrap img{width:100%;display:block;}
   .sheet{background:#fff;width:100%;max-width:520px;margin:0 auto 18px;border:1px solid #B9C1C8;padding:22px 20px;font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;border-radius:6px;}
   .sheet-cover{text-align:center;padding-top:10px;}
   .sheet-cover .cover-box{border:2px solid #2255A4;display:inline-block;padding:14px 26px;margin:26px 0 40px;font-size:19px;font-weight:800;color:#16305B;}
@@ -220,7 +223,7 @@
 
       <div class="card" id="exportControlCard" style="display:none;margin-top:18px;">
         <div class="card-title">엑셀로 내보내기</div>
-        <div class="note-box">아래 미리보기가 만들어지면 <b>복사하기</b> 버튼을 누른 뒤, 엑셀 시트에서 붙여넣기(Ctrl+V) 하시면 됩니다. 이미지가 붙여넣기 되지 않으면 사진을 우클릭 → 복사 후 개별로 붙여넣어 주세요.</div>
+        <div class="note-box">아래 미리보기가 만들어지면 <b>엑셀 다운로드</b> 버튼으로 실제 .xlsx 파일을 받으실 수 있습니다. 화면에서 바로 복사해서 다른 곳에 붙여넣고 싶으면 <b>복사하기</b>를 사용하세요.</div>
         <div id="coverFieldsWrap" style="display:none;">
           <label class="field-label">담당</label>
           <input type="text" id="coverDamdang">
@@ -230,7 +233,8 @@
           <input type="text" id="coverSojang">
         </div>
         <div style="display:flex;gap:8px;margin-top:12px;">
-          <button class="btn btn-primary" id="copyExportBtn" style="flex:1;">📋 복사하기</button>
+          <button class="btn btn-amber" id="downloadXlsxBtn" style="flex:1;">📥 엑셀 다운로드</button>
+          <button class="btn btn-ghost" id="copyExportBtn" style="flex:1;">📋 복사하기</button>
         </div>
       </div>
 
@@ -638,12 +642,221 @@
     if(selectedExport.size === 0){ toast('선택한 날짜에 등록된 사진이 없습니다'); return; }
     buildAndShowExport();
   });
+  let generatedPages = []; // array of <canvas> elements, one per exported page
+
+  // ---------- canvas helpers ----------
+  const PAGE_W = 900, PAGE_H = 1273; // A4 portrait ratio at print-friendly resolution
+
+  function loadImage(src){
+    return new Promise((resolve,reject)=>{
+      const img = new Image();
+      img.onload = ()=>resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+  function drawCoverFit(ctx, img, x, y, w, h){
+    const ir = img.width/img.height, tr = w/h;
+    let sx,sy,sw,sh;
+    if(ir > tr){ sh = img.height; sw = sh*tr; sx = (img.width-sw)/2; sy = 0; }
+    else{ sw = img.width; sh = sw/tr; sx = 0; sy = (img.height-sh)/2; }
+    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  }
+  function wrapTextChars(ctx, text, maxWidth, maxLines){
+    let lines = [], line = '';
+    for(const ch of (text||'')){
+      const test = line + ch;
+      if(ctx.measureText(test).width > maxWidth && line){ lines.push(line); line = ch; }
+      else line = test;
+    }
+    if(line) lines.push(line);
+    if(maxLines && lines.length > maxLines){
+      lines = lines.slice(0, maxLines);
+      lines[maxLines-1] = lines[maxLines-1].slice(0, -1) + '…';
+    }
+    return lines;
+  }
+
+  // ---------- page renderers (mirror the physical sample sheets) ----------
+  async function renderCoverCanvas(entry, damdang, anjeon, sojang){
+    const canvas = document.createElement('canvas');
+    canvas.width = PAGE_W; canvas.height = PAGE_H;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,PAGE_W,PAGE_H);
+    ctx.strokeStyle = '#B9C1C8'; ctx.lineWidth = 1; ctx.strokeRect(0.5,0.5,PAGE_W-1,PAGE_H-1);
+
+    // decorative diagonal corner shapes (top-left)
+    ctx.fillStyle = '#DBDFE2';
+    ctx.beginPath();
+    ctx.moveTo(0,0); ctx.lineTo(PAGE_W*0.30,0); ctx.lineTo(PAGE_W*0.10,PAGE_H*0.34); ctx.lineTo(0,PAGE_H*0.30);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#C6CBD0';
+    ctx.beginPath();
+    ctx.moveTo(0,PAGE_H*0.015); ctx.lineTo(PAGE_W*0.135,0); ctx.lineTo(PAGE_W*0.05,PAGE_H*0.155);
+    ctx.closePath(); ctx.fill();
+    // mirrored (bottom-right)
+    ctx.fillStyle = '#DBDFE2';
+    ctx.beginPath();
+    ctx.moveTo(PAGE_W,PAGE_H); ctx.lineTo(PAGE_W-PAGE_W*0.30,PAGE_H); ctx.lineTo(PAGE_W-PAGE_W*0.10,PAGE_H-PAGE_H*0.34); ctx.lineTo(PAGE_W,PAGE_H-PAGE_H*0.30);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#C6CBD0';
+    ctx.beginPath();
+    ctx.moveTo(PAGE_W,PAGE_H-PAGE_H*0.015); ctx.lineTo(PAGE_W-PAGE_W*0.135,PAGE_H); ctx.lineTo(PAGE_W-PAGE_W*0.05,PAGE_H-PAGE_H*0.155);
+    ctx.closePath(); ctx.fill();
+
+    // title box
+    const boxX = PAGE_W*0.15, boxY = PAGE_H*0.205, boxW = PAGE_W*0.70, boxH = PAGE_H*0.085;
+    ctx.strokeStyle = '#2255A4'; ctx.lineWidth = 3;
+    ctx.strokeRect(boxX, boxY, boxW, boxH);
+    ctx.fillStyle = '#16305B';
+    ctx.font = 'bold 30px "Malgun Gothic","Apple SD Gothic Neo",sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('일일 작업계획서 점검 결과 보고', PAGE_W/2, boxY+boxH/2);
+
+    // date
+    ctx.fillStyle = '#1B2126';
+    ctx.font = 'bold 32px "Malgun Gothic","Apple SD Gothic Neo",sans-serif';
+    const [dy,dm,dd] = entry.date.split('-');
+    ctx.fillText(`${dy}년 ${parseInt(dm)}월 ${parseInt(dd)}일`, PAGE_W/2, PAGE_H*0.40);
+
+    // table: 담당 / 안전보건책임자 / 현장소장
+    const tW = PAGE_W*0.60, tX = (PAGE_W-tW)/2, tY = PAGE_H*0.47, rowH = PAGE_H*0.045, colW = tW/3;
+    const headers = ['담당','안전보건책임자','현장소장'];
+    const values = [damdang||'', anjeon||'', sojang||''];
+    for(let c=0;c<3;c++){
+      ctx.fillStyle = '#F2F2F2';
+      ctx.fillRect(tX+c*colW, tY, colW, rowH);
+      ctx.strokeStyle = '#333'; ctx.lineWidth = 1.2;
+      ctx.strokeRect(tX+c*colW, tY, colW, rowH);
+      ctx.fillStyle = '#222'; ctx.font = 'bold 14px "Malgun Gothic",sans-serif';
+      ctx.fillText(headers[c], tX+c*colW+colW/2, tY+rowH/2);
+      ctx.strokeRect(tX+c*colW, tY+rowH, colW, rowH);
+      ctx.font = '14px "Malgun Gothic",sans-serif';
+      ctx.fillText(values[c], tX+c*colW+colW/2, tY+rowH*1.5);
+    }
+
+    // logo + site name
+    try{
+      const logoImg = await loadImage(settings.logo || DEFAULT_LOGO);
+      const logoH = 44;
+      const logoW = logoImg.width * (logoH/logoImg.height);
+      ctx.drawImage(logoImg, PAGE_W/2 - logoW/2, PAGE_H*0.635, logoW, logoH);
+      ctx.font = 'bold 21px "Malgun Gothic",sans-serif';
+      ctx.fillStyle = '#222';
+      ctx.fillText(settings.siteName, PAGE_W/2, PAGE_H*0.635 + logoH + 28);
+    }catch(e){ console.error('logo draw failed', e); }
+
+    return canvas;
+  }
+
+  async function renderAPhotoGridCanvas(chunk, entry, pageNum){
+    const canvas = document.createElement('canvas');
+    canvas.width = PAGE_W; canvas.height = PAGE_H;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,PAGE_W,PAGE_H);
+    ctx.strokeStyle = '#B9C1C8'; ctx.lineWidth = 1; ctx.strokeRect(0.5,0.5,PAGE_W-1,PAGE_H-1);
+
+    const hbX = PAGE_W*0.06, hbY = PAGE_H*0.045, hbW = PAGE_W*0.88, hbH = PAGE_H*0.045;
+    ctx.fillStyle = '#F0F1F2'; ctx.fillRect(hbX,hbY,hbW,hbH);
+    ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1; ctx.strokeRect(hbX,hbY,hbW,hbH);
+    ctx.fillStyle = '#9AA6AF'; ctx.fillRect(hbX+10, hbY+hbH*0.2, 5, hbH*0.6);
+    ctx.fillStyle = '#222'; ctx.font = 'bold 20px "Malgun Gothic",sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    ctx.fillText('안전점검 사진 대지', hbX+26, hbY+hbH/2);
+
+    const gridX = PAGE_W*0.06, gridY = hbY+hbH+PAGE_H*0.02, gridW = PAGE_W*0.88;
+    const gap = PAGE_W*0.025;
+    const cellW = (gridW-gap)/2;
+    const imgH = cellW*0.75;
+    const capH = PAGE_H*0.075;
+    const cellH = imgH + capH + 10;
+
+    for(let i=0;i<chunk.length;i++){
+      const col = i%2, row = Math.floor(i/2);
+      const cx = gridX + col*(cellW+gap);
+      const cy = gridY + row*(cellH+gap);
+      try{
+        const img = await loadImage(chunk[i].dataUrl);
+        drawCoverFit(ctx, img, cx, cy, cellW, imgH);
+      }catch(e){ console.error('photo draw failed', e); }
+      ctx.strokeStyle = '#999'; ctx.lineWidth = 1; ctx.strokeRect(cx,cy,cellW,imgH);
+      const capY = cy+imgH+8;
+      ctx.strokeStyle = '#2255A4'; ctx.lineWidth = 1.5; ctx.strokeRect(cx,capY,cellW,capH);
+      ctx.fillStyle = '#16305B'; ctx.font = '13px "Malgun Gothic",sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const text = '내용 : ' + resolvePhrase(chunk[i].caption, entry.date);
+      const lines = wrapTextChars(ctx, text, cellW-14, 3);
+      const lh = 17;
+      const startY = capY+capH/2 - (lines.length-1)*lh/2;
+      lines.forEach((ln,idx)=>ctx.fillText(ln, cx+cellW/2, startY+idx*lh));
+    }
+
+    ctx.fillStyle = '#666'; ctx.font = '13px sans-serif';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(String(pageNum), PAGE_W-30, PAGE_H-20);
+
+    return canvas;
+  }
+
+  function drawContainFit(ctx, img, x, y, w, h){
+    const ir = img.width/img.height, tr = w/h;
+    let dw, dh;
+    if(ir > tr){ dw = w; dh = w/ir; } else { dh = h; dw = h*ir; }
+    const dx = x + (w-dw)/2, dy = y + (h-dh)/2;
+    ctx.drawImage(img, dx, dy, dw, dh);
+    return { dx, dy, dw, dh };
+  }
+
+  // Renders one page containing up to 2 stacked "사진대지" blocks (matches the
+  // sample where 2 photos for the same category belong on one printed page).
+  async function renderBCategoryPageCanvas(photosChunk, entry){
+    const canvas = document.createElement('canvas');
+    canvas.width = PAGE_W; canvas.height = PAGE_H;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,PAGE_W,PAGE_H);
+    ctx.strokeStyle = '#B9C1C8'; ctx.lineWidth = 1; ctx.strokeRect(0.5,0.5,PAGE_W-1,PAGE_H-1);
+
+    const M = 50, gapBetween = 26;
+    const n = photosChunk.length;
+    const blockH = (PAGE_H - M*2 - (n-1)*gapBetween) / n;
+    const boxW = PAGE_W*0.86, boxX = (PAGE_W-boxW)/2;
+
+    for(let i=0;i<n;i++){
+      const blockY = M + i*(blockH+gapBetween);
+      const titleH = Math.min(70, blockH*0.14);
+      ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(boxX, blockY, boxW, titleH);
+      ctx.fillStyle = '#1B2A4A'; ctx.font = `bold ${Math.round(titleH*0.42)}px "Malgun Gothic",sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('사 진 대 지', PAGE_W/2, blockY+titleH/2);
+
+      const capH = Math.min(40, blockH*0.09);
+      const photoY = blockY+titleH+14;
+      const photoAvailH = blockH - titleH - 14 - capH - 14;
+      try{
+        const img = await loadImage(photosChunk[i].dataUrl);
+        const { dx, dy, dw, dh } = drawContainFit(ctx, img, boxX, photoY, boxW, photoAvailH);
+        ctx.strokeStyle = '#999'; ctx.lineWidth = 1; ctx.strokeRect(dx,dy,dw,dh);
+      }catch(e){ console.error('photo draw failed', e); }
+
+      const capY = blockY+blockH-capH;
+      ctx.strokeStyle = '#16305B'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(boxX,capY); ctx.lineTo(boxX+boxW,capY); ctx.stroke();
+      ctx.fillStyle = '#16305B'; ctx.font = `bold ${Math.round(capH*0.42)}px "Malgun Gothic",sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const [dy2,dm2,dd2] = entry.date.split('-');
+      ctx.fillText(`${dy2}.${dm2}.${dd2} ${entry.category}`, PAGE_W/2, capY+capH/2);
+    }
+
+    return canvas;
+  }
+
   document.getElementById('buildExportBtn').addEventListener('click', ()=>{
     if(selectedExport.size === 0){ toast('내보낼 항목을 선택해주세요'); return; }
     buildAndShowExport();
   });
 
-  function buildAndShowExport(){
+  async function buildAndShowExport(){
     const entries = [];
     if(selectedExport.has('A')){
       entries.push({ formType:'A', date: exportDate, photos: exportDay.A.filter(Boolean) });
@@ -656,52 +869,84 @@
     const hasA = entries.some(e=>e.formType==='A');
     document.getElementById('coverFieldsWrap').style.display = hasA ? 'block' : 'none';
     document.getElementById('exportControlCard').style.display = 'block';
-    renderExportPreview(entries);
-    toast('미리보기 생성 완료');
-    document.getElementById('exportControlCard').scrollIntoView({behavior:'smooth', block:'start'});
-  }
 
-  function renderExportPreview(entries){
-    const wrap = document.getElementById('exportPreview');
-    let html = '';
+    const buildBtn = document.getElementById('buildExportBtn');
+    buildBtn.disabled = true; buildBtn.textContent = '만드는 중...';
+    toast('미리보기 만드는 중...');
+
     const damdang = document.getElementById('coverDamdang').value;
     const anjeon = document.getElementById('coverAnjeon').value;
     const sojang = document.getElementById('coverSojang').value;
 
-    entries.forEach(entry=>{
+    const pages = [];
+    for(const entry of entries){
       if(entry.formType === 'A'){
-        html += `
-        <div class="sheet sheet-cover">
-          <div class="cover-box">일일 작업계획서 점검 결과 보고</div>
-          <div class="cover-date">${fmtDateDot(entry.date)}</div>
-          <table>
-            <tr><th>담당</th><th>안전보건책임자</th><th>현장소장</th></tr>
-            <tr><td>${escapeHtml(damdang)||'&nbsp;'}</td><td>${escapeHtml(anjeon)||'&nbsp;'}</td><td>${escapeHtml(sojang)||'&nbsp;'}</td></tr>
-          </table>
-          <img class="cover-logo" src="${settings.logo||DEFAULT_LOGO}"><br>
-          <div class="cover-site">${escapeHtml(settings.siteName)}</div>
-        </div>`;
+        pages.push(await renderCoverCanvas(entry, damdang, anjeon, sojang));
         const photos = entry.photos;
+        let pageNum = 1;
         for(let i=0;i<photos.length;i+=4){
           const chunk = photos.slice(i,i+4);
-          html += `<div class="sheet"><div class="sheet-header-bar"><div class="hb-mark"></div><span>안전점검 사진 대지</span></div><div class="sheet-photo-grid">`;
-          chunk.forEach(p=>{
-            html += `<div class="sheet-photo-cell"><img src="${p.dataUrl}"><div class="sheet-photo-caption">내용 : ${escapeHtml(resolvePhrase(p.caption, entry.date))}</div></div>`;
-          });
-          html += `</div></div>`;
+          pages.push(await renderAPhotoGridCanvas(chunk, entry, pageNum++));
         }
       } else {
-        entry.photos.forEach(p=>{
-          html += `<div class="sheet">
-            <div class="single-photo-title">사 진 대 지</div>
-            <img class="single-photo-img" src="${p.dataUrl}">
-            <div class="single-photo-caption">${fmtDateDot(entry.date)} ${escapeHtml(entry.category)}</div>
-          </div>`;
-        });
+        const photos = entry.photos;
+        for(let i=0;i<photos.length;i+=2){
+          const chunk = photos.slice(i,i+2);
+          pages.push(await renderBCategoryPageCanvas(chunk, entry));
+        }
       }
-    });
-    wrap.innerHTML = html;
+    }
+    generatedPages = pages;
+    renderExportPreviewFromCanvases(pages);
+    buildBtn.disabled = false; buildBtn.textContent = '선택 항목 미리보기 만들기';
+    toast('미리보기 생성 완료');
+    document.getElementById('exportControlCard').scrollIntoView({behavior:'smooth', block:'start'});
   }
+
+  function renderExportPreviewFromCanvases(pages){
+    const wrap = document.getElementById('exportPreview');
+    wrap.innerHTML = '';
+    pages.forEach(canvas=>{
+      const box = document.createElement('div');
+      box.className = 'page-img-wrap';
+      const img = document.createElement('img');
+      img.src = canvas.toDataURL('image/png');
+      box.appendChild(img);
+      wrap.appendChild(box);
+    });
+  }
+
+  // ---------- 실제 엑셀(.xlsx) 파일 다운로드 ----------
+  document.getElementById('downloadXlsxBtn').addEventListener('click', async ()=>{
+    if(!generatedPages.length){ toast('먼저 미리보기를 만들어주세요'); return; }
+    const btn = document.getElementById('downloadXlsxBtn');
+    btn.disabled = true; btn.textContent = '엑셀 생성 중...';
+    try{
+      const workbook = new ExcelJS.Workbook();
+      generatedPages.forEach((canvas, idx)=>{
+        const ws = workbook.addWorksheet('page'+(idx+1));
+        ws.views = [{ showGridLines:false }];
+        const dataUrl = canvas.toDataURL('image/png');
+        const base64 = dataUrl.split(',')[1];
+        const imgId = workbook.addImage({ base64, extension:'png' });
+        ws.addImage(imgId, { tl:{col:0,row:0}, ext:{ width: canvas.width*0.72, height: canvas.height*0.72 } });
+      });
+      const buf = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `사진대지_${exportDate.replace(/-/g,'')}.xlsx`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast('엑셀 파일 다운로드 완료');
+    }catch(e){
+      console.error('xlsx export failed', e);
+      toast('엑셀 파일 생성에 실패했습니다');
+    } finally {
+      btn.disabled = false; btn.textContent = '📥 엑셀 다운로드';
+    }
+  });
 
   document.getElementById('copyExportBtn').addEventListener('click', async ()=>{
     const src = document.getElementById('exportPreview');
