@@ -4,7 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>현장 안전점검 사진대지 시스템</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <style>
+  .config-warning{background:#C0392B;color:#fff;text-align:center;font-size:12.5px;font-weight:700;padding:8px 10px;display:none;}
   :root{
     --navy:#132A46;
     --navy-2:#1D3B5F;
@@ -162,6 +166,8 @@
 </head>
 <body>
 
+<div class="config-warning" id="configWarning">⚠ firebaseConfig 값이 비어있습니다. 코드 상단의 firebaseConfig(databaseURL 포함)를 Firebase 콘솔에서 복사한 값으로 채워주세요. 그 전까지는 저장이 되지 않습니다.</div>
+
 <div class="app-header">
   <div class="brand">
     <div class="brand-mark"></div>
@@ -258,7 +264,7 @@
       <div class="card">
         <div class="card-title">데이터 안내</div>
         <div style="font-size:12.5px;color:var(--text-dim);line-height:1.6;">
-          이 앱의 등록 데이터는 <b>공유 저장소</b>에 저장되어, 이 링크를 사용하는 모든 사람(현장 작업자·사무실)에게 공통으로 보입니다. 별도 로그인은 없으니 링크를 신뢰할 수 있는 사람들과만 공유해 주세요.
+          이 앱의 등록 데이터는 <b>Firebase Realtime Database</b>에 저장되며, 화면 뒤에서 <b>익명 인증</b>으로 자동 로그인되어(별도 로그인 화면 없음) 이 링크를 사용하는 모든 사람(현장 작업자·사무실)에게 공통으로 보입니다. 링크를 신뢰할 수 있는 사람들과만 공유해 주세요.
         </div>
       </div>
     </div>
@@ -288,6 +294,42 @@
 
 <script>
 (function(){
+  // ======================================================================
+  // Firebase 설정: Firebase 콘솔(console.firebase.google.com)에서
+  // 프로젝트 생성 > 웹 앱 등록 후 나오는 값을 아래에 그대로 붙여넣으세요.
+  // databaseURL은 Realtime Database 화면 상단에 표시되는 주소입니다.
+  // (예: https://your-project-default-rtdb.asia-southeast1.firebasedatabase.app)
+  // ======================================================================
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+    projectId: "YOUR_PROJECT",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+  };
+  let db = null;
+  let authReady = false;
+  const configReady = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
+  if(configReady){
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.database();
+  } else {
+    document.getElementById('configWarning').style.display = 'block';
+  }
+
+  // 익명 인증: 로그인 화면 없이 백그라운드에서 자동으로 인증만 받습니다.
+  function ensureAuth(){
+    return new Promise((resolve)=>{
+      if(!configReady){ resolve(null); return; }
+      firebase.auth().onAuthStateChanged(user=>{
+        if(user){ authReady = true; resolve(user); }
+        else { firebase.auth().signInAnonymously().catch(e=>console.error('anon sign-in failed', e)); }
+      });
+    });
+  }
+
   const B_CATEGORIES = ["일일 고위험작업 회의","5분 특별안전교육","근로자 청취","O.P.C","고위험 특별 안전교육","피드백 회의","노사협의체"];
   const DEFAULT_LOGO = "data:image/png;base64,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";
   const DEFAULT_PHRASES = [
@@ -321,13 +363,19 @@
   let modalPhotos = [];
   let toastTimer = null;
 
-  async function sGet(key, shared){
-    try{ const r = await window.storage.get(key, shared); return r ? r.value : null; }
-    catch(e){ return null; }
+  async function sGet(key){
+    if(!db) return null;
+    try{
+      const snap = await db.ref('appdata/'+key).once('value');
+      return snap.exists() ? snap.val().value : null;
+    }catch(e){ console.error("rtdb get failed", key, e); return null; }
   }
-  async function sSet(key, value, shared){
-    try{ return await window.storage.set(key, value, shared); }
-    catch(e){ console.error("storage set failed", e); return null; }
+  async function sSet(key, value){
+    if(!db) return null;
+    try{
+      await db.ref('appdata/'+key).set({ value, updatedAt: Date.now() });
+      return true;
+    }catch(e){ console.error("rtdb set failed", key, e); return null; }
   }
 
   function toast(msg){
@@ -375,23 +423,40 @@
     if(d && d.B) for(let i=0;i<7;i++){ if(d.B[i]) nd.B[i]=d.B[i]; }
     return nd;
   }
+  // Each A-slot and each B-category is stored as its own Firestore document
+  // (day:{date}:A{i} / day:{date}:B{i}) instead of one big per-day blob,
+  // so a single document never gets close to Firestore's 1MB size limit.
   async function loadDay(date){
-    const raw = await sGet('day:'+date, true);
-    if(raw){ try{ return normalizeDay(JSON.parse(raw), date); }catch(e){} }
-    return emptyDay(date);
+    const day = emptyDay(date);
+    const jobs = [];
+    for(let i=0;i<4;i++){
+      jobs.push(sGet(`day:${date}:A${i}`).then(raw=>{
+        if(raw){ try{ day.A[i] = JSON.parse(raw); }catch(e){} }
+      }));
+    }
+    for(let i=0;i<7;i++){
+      jobs.push(sGet(`day:${date}:B${i}`).then(raw=>{
+        if(raw){ try{ day.B[i] = JSON.parse(raw); }catch(e){} }
+      }));
+    }
+    await Promise.all(jobs);
+    return day;
   }
-  async function saveDay(date, day){
-    return await sSet('day:'+date, JSON.stringify(day), true);
+  async function saveASlot(date, idx, slotData){
+    return await sSet(`day:${date}:A${idx}`, JSON.stringify(slotData));
+  }
+  async function saveBCategory(date, idx, photosArr){
+    return await sSet(`day:${date}:B${idx}`, JSON.stringify({photos:photosArr}));
   }
 
   async function loadSettings(){
-    let raw = await sGet('settings', true);
+    let raw = await sGet('settings');
     if(raw){ try{ settings = JSON.parse(raw); }catch(e){ settings = {...DEFAULT_SETTINGS}; } }
-    else { settings = {...DEFAULT_SETTINGS}; await sSet('settings', JSON.stringify(settings), true); }
+    else { settings = {...DEFAULT_SETTINGS}; await sSet('settings', JSON.stringify(settings)); }
 
-    let rawP = await sGet('phrases', true);
+    let rawP = await sGet('phrases');
     if(rawP){ try{ phrases = JSON.parse(rawP); }catch(e){ phrases = [...DEFAULT_PHRASES]; } }
-    else { phrases = [...DEFAULT_PHRASES]; await sSet('phrases', JSON.stringify(phrases), true); }
+    else { phrases = [...DEFAULT_PHRASES]; await sSet('phrases', JSON.stringify(phrases)); }
 
     document.getElementById('settingSiteName').value = settings.siteName;
     document.getElementById('settingCompany').value = settings.company;
@@ -429,7 +494,7 @@
     settings.damdang = document.getElementById('coverDamdang').value;
     settings.anjeon = document.getElementById('coverAnjeon').value;
     settings.sojang = document.getElementById('coverSojang').value;
-    const ok = await sSet('settings', JSON.stringify(settings), true);
+    const ok = await sSet('settings', JSON.stringify(settings));
     toast(ok ? '설정 저장 완료' : '저장 실패');
     document.querySelector('.app-header .sub').textContent = settings.siteName + ' · 촬영-등록-엑셀 붙여넣기';
   });
@@ -437,7 +502,7 @@
   document.getElementById('savePhrasesBtn').addEventListener('click', async ()=>{
     const inputs = document.querySelectorAll('#phraseList input');
     phrases = Array.from(inputs).map(i=>i.value.trim()).filter(v=>v.length>0);
-    const ok = await sSet('phrases', JSON.stringify(phrases), true);
+    const ok = await sSet('phrases', JSON.stringify(phrases));
     toast(ok ? '문구 목록 저장 완료' : '저장 실패');
     renderPhraseList();
   });
@@ -749,18 +814,21 @@
     const btn = document.getElementById('modalSaveBtn');
     btn.disabled = true; btn.textContent = '저장 중...';
     try{
+      let ok;
       if(modalMode.type === 'A'){
-        if(modalPhotos.length === 0){
-          currentDay.A[modalMode.slot] = null;
-        } else {
+        let slotData = null;
+        if(modalPhotos.length > 0){
           const cap = modalCaptionSelect.value || '';
-          currentDay.A[modalMode.slot] = { dataUrl: modalPhotos[0].dataUrl, caption: cap };
+          slotData = { dataUrl: modalPhotos[0].dataUrl, caption: cap };
         }
+        currentDay.A[modalMode.slot] = slotData;
+        ok = await saveASlot(registerDate, modalMode.slot, slotData);
       } else {
-        currentDay.B[modalMode.cat].photos = modalPhotos.map(p=>({dataUrl:p.dataUrl}));
+        const photosArr = modalPhotos.map(p=>({dataUrl:p.dataUrl}));
+        currentDay.B[modalMode.cat].photos = photosArr;
+        ok = await saveBCategory(registerDate, modalMode.cat, photosArr);
       }
-      const ok = await saveDay(registerDate, currentDay);
-      if(!ok){ toast('저장 실패. 다시 시도해주세요'); return; }
+      if(!ok){ toast('저장 실패. Firebase 설정을 확인해주세요'); return; }
       toast('저장 완료');
       renderASlots(); renderBStatus();
       closeModal();
@@ -770,6 +838,7 @@
   });
 
   (async function boot(){
+    await ensureAuth();
     await loadSettings();
     await refreshRegisterDay();
   })();
