@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>현장 안전점검 사진대지 시스템</title>
+<style>
+  :root{
+    --navy:#132A46;
+    --navy-2:#1D3B5F;
+    --paper:#F3F4F2;
+    --card:#FFFFFF;
+    --line-soft:#DEE2E4;
+    --amber:#E8A23D;
+    --amber-dark:#C7841F;
+    --red:#C0392B;
+    --green:#2F8F62;
+    --green-bg:#E5F4EC;
+    --text:#1B2126;
+    --text-dim:#78838A;
+    font-family: -apple-system, BlinkMacSystemFont, "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--text);}
+  body{padding-bottom:40px;}
+  h1,h2,h3{margin:0;}
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+
+  .app-header{background:var(--navy);color:#fff;padding:18px 16px 14px;position:sticky;top:0;z-index:50;}
+  .app-header .brand{display:flex;align-items:center;gap:10px;}
+  .app-header .brand-mark{width:10px;height:26px;background:var(--amber);flex:none;clip-path:polygon(0 0,100% 0,60% 100%,0 100%);}
+  .app-header h1{font-size:16px;font-weight:700;letter-spacing:.2px;}
+  .app-header .sub{font-size:11.5px;color:#B9C6D6;margin-top:2px;}
+  .tabs{display:flex;gap:6px;margin-top:14px;}
+  .tab-btn{flex:1;padding:10px 4px;border:none;border-radius:10px;background:rgba(255,255,255,0.08);color:#CBD6E2;font-size:13px;font-weight:600;transition:.15s;}
+  .tab-btn.active{background:var(--amber);color:#2A1B00;}
+
+  .container{max-width:1080px;margin:0 auto;padding:16px;}
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .narrow-wrap{max-width:820px;margin:0 auto;}
+  .narrow-wrap-sm{max-width:640px;margin:0 auto;}
+
+  .card{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:18px;margin-bottom:14px;box-shadow:0 1px 3px rgba(20,30,40,.04);}
+  .card-title{font-size:13px;font-weight:700;color:var(--navy-2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.4px;display:flex;align-items:center;gap:6px;}
+  .card-title::before{content:"";width:4px;height:14px;background:var(--amber);border-radius:2px;}
+  .section-heading{font-size:15.5px;font-weight:800;color:var(--navy);margin:2px 0 12px;display:flex;align-items:center;gap:8px;}
+  .section-heading .sh-mark{width:5px;height:18px;background:var(--amber);border-radius:2px;}
+
+  label.field-label{display:block;font-size:12.5px;font-weight:600;color:var(--text-dim);margin:12px 0 6px;}
+  label.field-label:first-child{margin-top:0;}
+  input[type=text],input[type=date],select,textarea{width:100%;padding:10px 11px;border:1px solid var(--line-soft);border-radius:10px;font-size:14.5px;background:#fff;color:var(--text);}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--amber);outline-offset:1px;}
+
+  .btn{padding:12px 16px;border-radius:12px;border:none;font-size:14.5px;font-weight:700;}
+  .btn-primary{background:var(--navy);color:#fff;}
+  .btn-primary:hover{background:var(--navy-2);}
+  .btn-amber{background:var(--amber);color:#2A1B00;}
+  .btn-amber:hover{background:var(--amber-dark);}
+  .btn-ghost{background:#fff;border:1px solid var(--line-soft);color:var(--text);}
+  .btn-danger{background:#fff;border:1px solid var(--red);color:var(--red);}
+  .btn-block{width:100%;}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+
+  /* ===== Date bar ===== */
+  .date-bar{display:flex;align-items:center;gap:10px;background:var(--navy);color:#fff;border-radius:14px;padding:13px 18px;margin-bottom:20px;flex-wrap:wrap;box-shadow:0 3px 10px rgba(19,42,70,.18);}
+  .date-bar .db-label{font-size:13px;font-weight:700;color:#CBD6E2;}
+  .date-bar input[type=date]{width:auto;background:#fff;border:none;padding:8px 10px;border-radius:8px;font-weight:700;}
+  .date-bar .db-today{margin-left:auto;background:rgba(255,255,255,.14);border:none;color:#fff;padding:8px 14px;border-radius:8px;font-size:12.5px;font-weight:700;}
+  .date-bar .db-today:hover{background:rgba(255,255,255,.24);}
+
+  /* ===== A form: photo slot cards ===== */
+  .slot-card-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .slot-card{position:relative;border-radius:16px;overflow:hidden;cursor:pointer;transition:.15s;aspect-ratio:4/3;background:#fff;}
+  .slot-card:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(20,30,40,.12);}
+  .slot-card.empty{border:2px dashed #C9CFD2;background:#FAFBFB;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-dim);gap:4px;}
+  .slot-card.empty:hover{border-color:var(--amber);background:#FFFBF3;color:var(--amber-dark);}
+  .slot-card.empty .slot-icon{font-size:26px;}
+  .slot-card.empty .slot-empty-label{font-size:13px;font-weight:700;}
+  .slot-card.filled{border:2px solid var(--green);}
+  .slot-card.filled img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
+  .slot-card .slot-caption-overlay{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(transparent,rgba(0,0,0,.78));color:#fff;font-size:11.5px;padding:20px 10px 8px;line-height:1.4;font-weight:600;}
+  .slot-num-badge{position:absolute;top:8px;left:8px;background:var(--navy);color:#fff;font-size:12px;font-weight:800;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:2;box-shadow:0 2px 6px rgba(0,0,0,.25);}
+  .slot-check-badge{position:absolute;top:8px;right:8px;background:var(--green);color:#fff;font-size:13px;font-weight:900;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:2;}
+
+  /* ===== B form: category cards ===== */
+  .cat-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-radius:14px;border:1.5px solid var(--line-soft);background:#fff;cursor:pointer;margin-bottom:10px;transition:.15s;}
+  .cat-card:hover{border-color:var(--amber);box-shadow:0 6px 16px rgba(20,30,40,.08);transform:translateY(-1px);}
+  .cat-card .cat-title{font-size:14.5px;font-weight:700;color:var(--navy);}
+  .cat-badge{font-size:12px;font-weight:800;padding:7px 14px;border-radius:20px;flex:none;}
+  .cat-badge.on{background:var(--green-bg);color:var(--green);}
+  .cat-badge.off{background:#F0F1F1;color:var(--text-dim);}
+
+  /* ===== Export tab ===== */
+  .export-all-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:10px;background:var(--amber);color:#2A1B00;border:none;border-radius:16px;padding:19px;font-size:16.5px;font-weight:800;cursor:pointer;margin-bottom:18px;box-shadow:0 6px 18px rgba(232,162,61,.4);transition:.15s;}
+  .export-all-btn:hover{background:var(--amber-dark);transform:translateY(-1px);}
+  .export-all-btn .icon{font-size:19px;}
+
+  .export-item-card{display:flex;align-items:center;gap:16px;padding:17px 18px;border-radius:14px;border:1.5px solid var(--line-soft);background:#fff;margin-bottom:10px;cursor:pointer;transition:.15s;}
+  .export-item-card.disabled{opacity:.5;cursor:not-allowed;background:#FAFAFA;}
+  .export-item-card:not(.disabled):hover{border-color:var(--amber);box-shadow:0 6px 16px rgba(20,30,40,.07);}
+  .export-item-card .ei-body{flex:1;min-width:0;}
+  .export-item-card .ei-label{font-size:15px;font-weight:700;color:var(--navy);}
+  .export-item-card .ei-sub{font-size:11.5px;color:var(--text-dim);font-weight:600;margin-top:3px;}
+
+  .checkbox-custom{width:30px;height:30px;border:2.5px solid #C9CFD2;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;background:#fff;transition:.15s;}
+  .checkbox-custom.checked{background:var(--amber);border-color:var(--amber-dark);}
+  .checkbox-custom.checked::after{content:"✓";color:#2A1B00;font-weight:900;font-size:18px;}
+  .export-item-card.disabled .checkbox-custom{background:#EDEDED;border-color:#DADDDF;}
+
+  .empty-state{text-align:center;padding:34px 10px;color:var(--text-dim);font-size:13px;}
+
+  .phrase-list{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+  .phrase-item{display:flex;gap:6px;align-items:center;}
+  .phrase-item input{flex:1;}
+  .phrase-item button{flex:none;background:#fff;border:1px solid var(--line-soft);border-radius:8px;padding:7px 10px;color:var(--red);font-size:12px;}
+
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:11px 18px;border-radius:20px;font-size:13.5px;box-shadow:0 6px 18px rgba(0,0,0,.25);z-index:200;opacity:0;pointer-events:none;transition:.25s;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+
+  /* ===== Modal ===== */
+  .modal-overlay{position:fixed;inset:0;background:rgba(10,16,24,.55);display:none;align-items:center;justify-content:center;z-index:300;padding:16px;}
+  .modal-overlay.show{display:flex;}
+  .modal-box{background:#fff;border-radius:18px;padding:20px;max-width:460px;width:100%;max-height:88vh;overflow:auto;}
+  .modal-title{font-size:15.5px;font-weight:800;color:var(--navy);margin-bottom:12px;}
+  .modal-photo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+  .modal-photo-slot{position:relative;border:1.5px dashed var(--line-soft);border-radius:12px;aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#FAFBFB;}
+  .modal-photo-slot img{width:100%;height:100%;object-fit:cover;}
+  .modal-photo-slot .rm-btn{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);color:#fff;border:none;width:24px;height:24px;border-radius:50%;font-size:13px;line-height:1;}
+  .add-photo-btn{border:1.5px dashed var(--amber);border-radius:12px;aspect-ratio:4/3;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#FFF9EF;color:var(--amber-dark);font-size:12.5px;font-weight:700;gap:4px;}
+  .add-photo-btn .plus{font-size:22px;line-height:1;}
+  .modal-actions{display:flex;gap:8px;margin-top:16px;}
+  .modal-actions .btn{flex:1;}
+
+  /* ===== Export preview (mirrors physical sheet) ===== */
+  #exportPreview{background:#DDE2E5;padding:18px 10px;border-radius:14px;}
+  .sheet{background:#fff;width:100%;max-width:520px;margin:0 auto 18px;border:1px solid #B9C1C8;padding:22px 20px;font-family:"Malgun Gothic","Apple SD Gothic Neo",sans-serif;border-radius:6px;}
+  .sheet-cover{text-align:center;padding-top:10px;}
+  .sheet-cover .cover-box{border:2px solid #2255A4;display:inline-block;padding:14px 26px;margin:26px 0 40px;font-size:19px;font-weight:800;color:#16305B;}
+  .sheet-cover .cover-date{font-size:16px;font-weight:800;margin-bottom:18px;}
+  .sheet-cover table{border-collapse:collapse;margin:0 auto 26px;font-size:12.5px;}
+  .sheet-cover table th,.sheet-cover table td{border:1px solid #333;padding:8px 18px;}
+  .sheet-cover table th{background:#F2F2F2;font-weight:700;}
+  .sheet-cover .cover-logo{height:26px;margin-bottom:6px;}
+  .sheet-cover .cover-site{font-size:15px;font-weight:700;color:#222;}
+  .sheet-header-bar{display:flex;align-items:center;gap:8px;background:#F0F1F2;border:1px solid #ccc;padding:8px 12px;margin-bottom:14px;}
+  .sheet-header-bar .hb-mark{width:5px;height:16px;background:#9AA6AF;}
+  .sheet-header-bar span{font-size:14px;font-weight:800;color:#222;}
+  .sheet-photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .sheet-photo-cell img{width:100%;aspect-ratio:4/3;object-fit:cover;border:1px solid #999;display:block;}
+  .sheet-photo-caption{border:1px solid #2255A4;color:#16305B;font-size:11px;text-align:center;padding:6px 4px;margin-top:4px;font-weight:600;line-height:1.4;}
+  .single-photo-title{text-align:center;font-size:20px;font-weight:800;letter-spacing:10px;margin:6px 0 18px;color:#1B2A4A;}
+  .single-photo-img{width:100%;aspect-ratio:4/3;object-fit:cover;border:1px solid #999;display:block;}
+  .single-photo-caption{text-align:center;font-size:12.5px;color:#16305B;font-weight:700;margin-top:8px;padding-top:8px;border-top:1px solid #16305B;}
+  .note-box{background:#FFF7EA;border:1px solid var(--amber);border-radius:12px;padding:11px 13px;font-size:12.5px;color:#6B4B0E;margin-bottom:14px;}
+
+  @media (max-width:480px){
+    .checkbox-custom{width:26px;height:26px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="app-header">
+  <div class="brand">
+    <div class="brand-mark"></div>
+    <div>
+      <h1>현장 안전점검 사진대지</h1>
+      <div class="sub">광주학동4구역 재개발현장 · 촬영-등록-엑셀 붙여넣기</div>
+    </div>
+  </div>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="register">📋 현장등록</button>
+    <button class="tab-btn" data-tab="export">🖨 인쇄</button>
+    <button class="tab-btn" data-tab="settings">⚙ 설정</button>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ============ REGISTER PANEL ============ -->
+  <div class="panel active" id="panel-register">
+    <div class="narrow-wrap">
+      <div class="date-bar">
+        <span class="db-label">작업일자</span>
+        <input type="date" id="registerDate">
+        <button class="db-today" id="registerTodayBtn">오늘</button>
+      </div>
+
+      <div class="section-heading"><span class="sh-mark"></span>일일 작업계획서 점검 결과 보고</div>
+      <div class="slot-card-grid" id="aSlotsGrid" style="margin-bottom:26px;"></div>
+
+      <div class="section-heading"><span class="sh-mark"></span>사진대지 등록 현황</div>
+      <div id="bStatusList"></div>
+    </div>
+  </div>
+
+  <!-- ============ EXPORT (인쇄) PANEL ============ -->
+  <div class="panel" id="panel-export">
+    <div class="narrow-wrap-sm">
+      <div class="date-bar">
+        <span class="db-label">날짜</span>
+        <input type="date" id="exportDate">
+        <button class="db-today" id="exportTodayBtn">오늘</button>
+      </div>
+
+      <button class="export-all-btn" id="exportAllBtn"><span class="icon">🖨</span><span>전체 내보내기</span></button>
+
+      <div class="section-heading"><span class="sh-mark"></span>내보낼 항목 선택</div>
+      <div id="exportItemsList"></div>
+
+      <button class="btn btn-primary btn-block" id="buildExportBtn" style="margin-top:6px;padding:15px;font-size:15px;">선택 항목 미리보기 만들기</button>
+
+      <div class="card" id="exportControlCard" style="display:none;margin-top:18px;">
+        <div class="card-title">엑셀로 내보내기</div>
+        <div class="note-box">아래 미리보기가 만들어지면 <b>복사하기</b> 버튼을 누른 뒤, 엑셀 시트에서 붙여넣기(Ctrl+V) 하시면 됩니다. 이미지가 붙여넣기 되지 않으면 사진을 우클릭 → 복사 후 개별로 붙여넣어 주세요.</div>
+        <div id="coverFieldsWrap" style="display:none;">
+          <label class="field-label">담당</label>
+          <input type="text" id="coverDamdang">
+          <label class="field-label">안전보건책임자</label>
+          <input type="text" id="coverAnjeon">
+          <label class="field-label">현장소장</label>
+          <input type="text" id="coverSojang">
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px;">
+          <button class="btn btn-primary" id="copyExportBtn" style="flex:1;">📋 복사하기</button>
+        </div>
+      </div>
+
+      <div id="exportPreview"></div>
+    </div>
+  </div>
+
+  <!-- ============ SETTINGS PANEL ============ -->
+  <div class="panel" id="panel-settings">
+    <div class="narrow-wrap-sm">
+      <div class="card">
+        <div class="card-title">현장 정보</div>
+        <label class="field-label">현장명</label>
+        <input type="text" id="settingSiteName">
+        <label class="field-label">회사명</label>
+        <input type="text" id="settingCompany">
+        <label class="field-label">로고 이미지</label>
+        <input type="file" id="settingLogoFile" accept="image/*">
+        <img id="logoPreview" style="height:28px;margin-top:8px;display:block;">
+        <button class="btn btn-primary btn-block" id="saveSettingsBtn" style="margin-top:14px;">저장</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">사진 내용 문구 목록 (A 양식용)</div>
+        <div class="phrase-list" id="phraseList"></div>
+        <button class="btn btn-ghost btn-block" id="addPhraseBtn" style="margin-top:10px;">+ 문구 추가</button>
+        <button class="btn btn-primary btn-block" id="savePhrasesBtn" style="margin-top:10px;">문구 목록 저장</button>
+        <div class="note-box" style="margin-top:10px;">문구에 <b>{날짜}</b> 를 넣으면 등록한 날짜로 자동 치환됩니다.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">데이터 안내</div>
+        <div style="font-size:12.5px;color:var(--text-dim);line-height:1.6;">
+          이 앱의 등록 데이터는 <b>공유 저장소</b>에 저장되어, 이 링크를 사용하는 모든 사람(현장 작업자·사무실)에게 공통으로 보입니다. 별도 로그인은 없으니 링크를 신뢰할 수 있는 사람들과만 공유해 주세요.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============ SLOT / CATEGORY MODAL ============ -->
+<div class="modal-overlay" id="slotModal">
+  <div class="modal-box">
+    <div class="modal-title" id="modalTitle">사진 등록</div>
+    <div id="modalCaptionWrap" style="display:none;">
+      <label class="field-label">내용</label>
+      <select id="modalCaptionSelect"></select>
+    </div>
+    <label class="field-label" style="margin-top:14px;">사진</label>
+    <div class="modal-photo-grid" id="modalPhotoGrid"></div>
+    <input type="file" id="modalFileInput" accept="image/*" capture="environment" multiple style="display:none;">
+    <div class="modal-actions">
+      <button class="btn btn-primary" id="modalSaveBtn">저장</button>
+      <button class="btn btn-ghost" id="modalCancelBtn">취소</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  const B_CATEGORIES = ["일일 고위험작업 회의","5분 특별안전교육","근로자 청취","O.P.C","고위험 특별 안전교육","피드백 회의","노사협의체"];
+  const DEFAULT_LOGO = "data:image/png;base64,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";
+  const DEFAULT_PHRASES = [
+    "천공기 철판 간격 및 작업상태확인, 유도원 보호구 착용상태확인",
+    "굴착기 소화기 비치 및 압력계 확인",
+    "토류판 절단 작업자 보호구 착용상태 확인",
+    "{날짜} 작업 전 운전원 자체 점검 실시 완료",
+    "카고 크레인 인양 고리체결상태 확인",
+    "카고 크레인 아웃트리거 지지대 상태확인",
+    "굴착기 4ch 작동 상태 확인",
+    "지게차 마스트 작동상태 확인",
+    "지게차 접근금지 표지판 확인",
+    "고소 작업차 수평상태 확인",
+    "작업구간 이동식cctv 설치 상태 확인"
+  ];
+  const DEFAULT_SETTINGS = {
+    siteName: "광주학동4구역 재개발현장",
+    company: "IPARK 현대산업개발",
+    logo: DEFAULT_LOGO,
+    damdang: "", anjeon: "", sojang: ""
+  };
+
+  let settings = null;
+  let phrases = [];
+  let registerDate = todayStr();
+  let exportDate = todayStr();
+  let currentDay = null;
+  let exportDay = null;
+  let selectedExport = new Set();
+  let modalMode = null;
+  let modalPhotos = [];
+  let toastTimer = null;
+
+  async function sGet(key, shared){
+    try{ const r = await window.storage.get(key, shared); return r ? r.value : null; }
+    catch(e){ return null; }
+  }
+  async function sSet(key, value, shared){
+    try{ return await window.storage.set(key, value, shared); }
+    catch(e){ console.error("storage set failed", e); return null; }
+  }
+
+  function toast(msg){
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+  }
+
+  function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
+  function fmtDateDot(iso){ if(!iso) return ''; const [y,m,d]=iso.split('-'); return y+'.'+m+'.'+d; }
+  function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
+  function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function resolvePhrase(caption, date){ return (caption||'').replace('{날짜}', fmtDateDot(date)); }
+
+  function compressFile(file, maxW){
+    return new Promise((resolve,reject)=>{
+      const reader = new FileReader();
+      reader.onload = function(e){
+        const img = new Image();
+        img.onload = function(){
+          let w = img.width, h = img.height;
+          if(w > maxW){ h = Math.round(h * (maxW/w)); w = maxW; }
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img,0,0,w,h);
+          resolve(canvas.toDataURL('image/jpeg', 0.72));
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function emptyDay(date){
+    return { date, A: [null,null,null,null], B: B_CATEGORIES.map(()=>({photos:[]})) };
+  }
+  function normalizeDay(d, date){
+    const nd = emptyDay(date);
+    if(d && d.A) for(let i=0;i<4;i++){ if(d.A[i]) nd.A[i]=d.A[i]; }
+    if(d && d.B) for(let i=0;i<7;i++){ if(d.B[i]) nd.B[i]=d.B[i]; }
+    return nd;
+  }
+  async function loadDay(date){
+    const raw = await sGet('day:'+date, true);
+    if(raw){ try{ return normalizeDay(JSON.parse(raw), date); }catch(e){} }
+    return emptyDay(date);
+  }
+  async function saveDay(date, day){
+    return await sSet('day:'+date, JSON.stringify(day), true);
+  }
+
+  async function loadSettings(){
+    let raw = await sGet('settings', true);
+    if(raw){ try{ settings = JSON.parse(raw); }catch(e){ settings = {...DEFAULT_SETTINGS}; } }
+    else { settings = {...DEFAULT_SETTINGS}; await sSet('settings', JSON.stringify(settings), true); }
+
+    let rawP = await sGet('phrases', true);
+    if(rawP){ try{ phrases = JSON.parse(rawP); }catch(e){ phrases = [...DEFAULT_PHRASES]; } }
+    else { phrases = [...DEFAULT_PHRASES]; await sSet('phrases', JSON.stringify(phrases), true); }
+
+    document.getElementById('settingSiteName').value = settings.siteName;
+    document.getElementById('settingCompany').value = settings.company;
+    document.getElementById('logoPreview').src = settings.logo || DEFAULT_LOGO;
+    document.getElementById('coverDamdang').value = settings.damdang || '';
+    document.getElementById('coverAnjeon').value = settings.anjeon || '';
+    document.getElementById('coverSojang').value = settings.sojang || '';
+    renderPhraseList();
+  }
+
+  function renderPhraseList(){
+    const wrap = document.getElementById('phraseList');
+    wrap.innerHTML = '';
+    phrases.forEach((p,i)=>{
+      const row = document.createElement('div');
+      row.className = 'phrase-item';
+      row.innerHTML = `<input type="text" value="${escapeAttr(p)}" data-idx="${i}"><button data-idx="${i}">삭제</button>`;
+      wrap.appendChild(row);
+    });
+    wrap.querySelectorAll('button').forEach(b=>{
+      b.addEventListener('click', ()=>{ phrases.splice(parseInt(b.dataset.idx),1); renderPhraseList(); });
+    });
+  }
+
+  document.getElementById('settingLogoFile').addEventListener('change', async (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const dataUrl = await compressFile(f, 400);
+    document.getElementById('logoPreview').src = dataUrl;
+    settings._pendingLogo = dataUrl;
+  });
+  document.getElementById('saveSettingsBtn').addEventListener('click', async ()=>{
+    settings.siteName = document.getElementById('settingSiteName').value;
+    settings.company = document.getElementById('settingCompany').value;
+    if(settings._pendingLogo){ settings.logo = settings._pendingLogo; delete settings._pendingLogo; }
+    settings.damdang = document.getElementById('coverDamdang').value;
+    settings.anjeon = document.getElementById('coverAnjeon').value;
+    settings.sojang = document.getElementById('coverSojang').value;
+    const ok = await sSet('settings', JSON.stringify(settings), true);
+    toast(ok ? '설정 저장 완료' : '저장 실패');
+    document.querySelector('.app-header .sub').textContent = settings.siteName + ' · 촬영-등록-엑셀 붙여넣기';
+  });
+  document.getElementById('addPhraseBtn').addEventListener('click', ()=>{ phrases.push(''); renderPhraseList(); });
+  document.getElementById('savePhrasesBtn').addEventListener('click', async ()=>{
+    const inputs = document.querySelectorAll('#phraseList input');
+    phrases = Array.from(inputs).map(i=>i.value.trim()).filter(v=>v.length>0);
+    const ok = await sSet('phrases', JSON.stringify(phrases), true);
+    toast(ok ? '문구 목록 저장 완료' : '저장 실패');
+    renderPhraseList();
+  });
+
+  document.querySelectorAll('.tab-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('panel-'+btn.dataset.tab).classList.add('active');
+      if(btn.dataset.tab === 'export') refreshExportDay();
+    });
+  });
+
+  const registerDateInput = document.getElementById('registerDate');
+  registerDateInput.value = registerDate;
+  registerDateInput.addEventListener('change', async ()=>{
+    registerDate = registerDateInput.value || todayStr();
+    await refreshRegisterDay();
+  });
+  document.getElementById('registerTodayBtn').addEventListener('click', ()=>{
+    registerDate = todayStr();
+    registerDateInput.value = registerDate;
+    registerDateInput.dispatchEvent(new Event('change'));
+  });
+  async function refreshRegisterDay(){
+    currentDay = await loadDay(registerDate);
+    renderASlots();
+    renderBStatus();
+  }
+
+  const exportDateInput = document.getElementById('exportDate');
+  exportDateInput.value = exportDate;
+  exportDateInput.addEventListener('change', async ()=>{
+    exportDate = exportDateInput.value || todayStr();
+    document.getElementById('exportControlCard').style.display = 'none';
+    document.getElementById('exportPreview').innerHTML = '';
+    selectedExport.clear();
+    await refreshExportDay();
+  });
+  document.getElementById('exportTodayBtn').addEventListener('click', ()=>{
+    exportDate = todayStr();
+    exportDateInput.value = exportDate;
+    exportDateInput.dispatchEvent(new Event('change'));
+  });
+  async function refreshExportDay(){
+    exportDay = await loadDay(exportDate);
+    renderExportItems();
+  }
+
+  // ---------- A slot cards ----------
+  function renderASlots(){
+    const grid = document.getElementById('aSlotsGrid');
+    let html = '';
+    for(let i=0;i<4;i++){
+      const slot = currentDay.A[i];
+      if(slot){
+        html += `<div class="slot-card filled" data-slot="${i}">
+          <div class="slot-num-badge">${i+1}</div>
+          <div class="slot-check-badge">✓</div>
+          <img src="${slot.dataUrl}">
+          <div class="slot-caption-overlay">${escapeHtml(resolvePhrase(slot.caption, registerDate))||'(내용 없음)'}</div>
+        </div>`;
+      } else {
+        html += `<div class="slot-card empty" data-slot="${i}">
+          <div class="slot-num-badge">${i+1}</div>
+          <div class="slot-icon">📷</div>
+          <div class="slot-empty-label">사진 등록</div>
+        </div>`;
+      }
+    }
+    grid.innerHTML = html;
+    grid.querySelectorAll('.slot-card').forEach(el=>{
+      el.addEventListener('click', ()=>openASlotModal(parseInt(el.dataset.slot)));
+    });
+  }
+
+  // ---------- B category cards ----------
+  function renderBStatus(){
+    const wrap = document.getElementById('bStatusList');
+    let html = '';
+    B_CATEGORIES.forEach((cat,i)=>{
+      const has = currentDay.B[i].photos.length > 0;
+      html += `<div class="cat-card" data-cat="${i}">
+        <div class="cat-title">${escapeHtml(cat)}</div>
+        <div class="cat-badge ${has?'on':'off'}">${has?'등록완료':'미등록'}</div>
+      </div>`;
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('.cat-card').forEach(el=>{
+      el.addEventListener('click', ()=>openBCategoryModal(parseInt(el.dataset.cat)));
+    });
+  }
+
+  // ---------- export item cards ----------
+  function renderExportItems(){
+    const wrap = document.getElementById('exportItemsList');
+    if(!exportDay){ wrap.innerHTML=''; return; }
+    let html = '';
+    const aHas = exportDay.A.some(s=>s);
+    html += buildExportCard('A', '일일 작업계획서 점검 결과 보고', aHas);
+    B_CATEGORIES.forEach((cat,i)=>{
+      const has = exportDay.B[i].photos.length > 0;
+      html += buildExportCard('B'+i, cat, has);
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('.export-item-card').forEach(el=>{
+      if(el.classList.contains('disabled')) return;
+      el.addEventListener('click', ()=>toggleExportKey(el.dataset.key));
+    });
+  }
+  function buildExportCard(key, label, has){
+    const checked = selectedExport.has(key);
+    return `<div class="export-item-card ${has?'':'disabled'}" data-key="${key}">
+      <div class="checkbox-custom ${checked?'checked':''}"></div>
+      <div class="ei-body">
+        <div class="ei-label">${escapeHtml(label)}</div>
+        ${has?'':'<div class="ei-sub">사진 없음</div>'}
+      </div>
+    </div>`;
+  }
+  function toggleExportKey(key){
+    if(selectedExport.has(key)) selectedExport.delete(key); else selectedExport.add(key);
+    renderExportItems();
+  }
+
+  document.getElementById('exportAllBtn').addEventListener('click', ()=>{
+    if(!exportDay) return;
+    selectedExport.clear();
+    if(exportDay.A.some(s=>s)) selectedExport.add('A');
+    B_CATEGORIES.forEach((c,i)=>{ if(exportDay.B[i].photos.length>0) selectedExport.add('B'+i); });
+    renderExportItems();
+    if(selectedExport.size === 0){ toast('선택한 날짜에 등록된 사진이 없습니다'); return; }
+    buildAndShowExport();
+  });
+  document.getElementById('buildExportBtn').addEventListener('click', ()=>{
+    if(selectedExport.size === 0){ toast('내보낼 항목을 선택해주세요'); return; }
+    buildAndShowExport();
+  });
+
+  function buildAndShowExport(){
+    const entries = [];
+    if(selectedExport.has('A')){
+      entries.push({ formType:'A', date: exportDate, photos: exportDay.A.filter(Boolean) });
+    }
+    B_CATEGORIES.forEach((cat,i)=>{
+      if(selectedExport.has('B'+i)){
+        entries.push({ formType:'B', category: cat, date: exportDate, photos: exportDay.B[i].photos });
+      }
+    });
+    const hasA = entries.some(e=>e.formType==='A');
+    document.getElementById('coverFieldsWrap').style.display = hasA ? 'block' : 'none';
+    document.getElementById('exportControlCard').style.display = 'block';
+    renderExportPreview(entries);
+    toast('미리보기 생성 완료');
+    document.getElementById('exportControlCard').scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  function renderExportPreview(entries){
+    const wrap = document.getElementById('exportPreview');
+    let html = '';
+    const damdang = document.getElementById('coverDamdang').value;
+    const anjeon = document.getElementById('coverAnjeon').value;
+    const sojang = document.getElementById('coverSojang').value;
+
+    entries.forEach(entry=>{
+      if(entry.formType === 'A'){
+        html += `
+        <div class="sheet sheet-cover">
+          <div class="cover-box">일일 작업계획서 점검 결과 보고</div>
+          <div class="cover-date">${fmtDateDot(entry.date)}</div>
+          <table>
+            <tr><th>담당</th><th>안전보건책임자</th><th>현장소장</th></tr>
+            <tr><td>${escapeHtml(damdang)||'&nbsp;'}</td><td>${escapeHtml(anjeon)||'&nbsp;'}</td><td>${escapeHtml(sojang)||'&nbsp;'}</td></tr>
+          </table>
+          <img class="cover-logo" src="${settings.logo||DEFAULT_LOGO}"><br>
+          <div class="cover-site">${escapeHtml(settings.siteName)}</div>
+        </div>`;
+        const photos = entry.photos;
+        for(let i=0;i<photos.length;i+=4){
+          const chunk = photos.slice(i,i+4);
+          html += `<div class="sheet"><div class="sheet-header-bar"><div class="hb-mark"></div><span>안전점검 사진 대지</span></div><div class="sheet-photo-grid">`;
+          chunk.forEach(p=>{
+            html += `<div class="sheet-photo-cell"><img src="${p.dataUrl}"><div class="sheet-photo-caption">내용 : ${escapeHtml(resolvePhrase(p.caption, entry.date))}</div></div>`;
+          });
+          html += `</div></div>`;
+        }
+      } else {
+        entry.photos.forEach(p=>{
+          html += `<div class="sheet">
+            <div class="single-photo-title">사 진 대 지</div>
+            <img class="single-photo-img" src="${p.dataUrl}">
+            <div class="single-photo-caption">${fmtDateDot(entry.date)} ${escapeHtml(entry.category)}</div>
+          </div>`;
+        });
+      }
+    });
+    wrap.innerHTML = html;
+  }
+
+  document.getElementById('copyExportBtn').addEventListener('click', async ()=>{
+    const src = document.getElementById('exportPreview');
+    if(!src.innerHTML.trim()){ toast('먼저 미리보기를 만들어주세요'); return; }
+    const tableHtml = `<html><body>${src.innerHTML}</body></html>`;
+    try{
+      if(navigator.clipboard && window.ClipboardItem){
+        const blob = new Blob([tableHtml], {type:'text/html'});
+        const textBlob = new Blob([src.innerText], {type:'text/plain'});
+        await navigator.clipboard.write([new ClipboardItem({'text/html':blob, 'text/plain':textBlob})]);
+        toast('복사 완료! 엑셀에서 Ctrl+V 하세요');
+      } else { fallbackCopy(src); }
+    }catch(e){ console.error(e); fallbackCopy(src); }
+  });
+  function fallbackCopy(src){
+    try{
+      const range = document.createRange();
+      range.selectNodeContents(src);
+      const sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(range);
+      document.execCommand('copy');
+      sel.removeAllRanges();
+      toast('복사 완료! 엑셀에서 Ctrl+V 하세요');
+    }catch(e){ toast('복사에 실패했습니다. 화면을 직접 드래그해서 복사해주세요.'); }
+  }
+
+  const modalOverlay = document.getElementById('slotModal');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalCaptionWrap = document.getElementById('modalCaptionWrap');
+  const modalCaptionSelect = document.getElementById('modalCaptionSelect');
+  const modalPhotoGrid = document.getElementById('modalPhotoGrid');
+  const modalFileInput = document.getElementById('modalFileInput');
+
+  function openASlotModal(slotIdx){
+    modalMode = {type:'A', slot:slotIdx};
+    const existing = currentDay.A[slotIdx];
+    modalPhotos = existing ? [{dataUrl:existing.dataUrl, caption:existing.caption}] : [];
+    modalTitle.textContent = `사진등록 ${slotIdx+1} · 일일 작업계획서 점검 결과 보고`;
+    modalCaptionWrap.style.display = 'block';
+    buildCaptionOptions(modalPhotos[0] ? modalPhotos[0].caption : '');
+    renderModalPhotoGrid(1);
+    modalOverlay.classList.add('show');
+  }
+  function buildCaptionOptions(selected){
+    const opts = phrases.map(ph=>`<option value="${escapeAttr(ph)}" ${selected===ph?'selected':''}>${escapeHtml(ph)}</option>`).join('');
+    modalCaptionSelect.innerHTML = `<option value="">-- 내용 선택 --</option>${opts}<option value="__custom__">✏️ 직접 입력</option>`;
+    if(selected && !phrases.includes(selected)){
+      modalCaptionSelect.innerHTML += `<option value="${escapeAttr(selected)}" selected>${escapeHtml(selected)}</option>`;
+    }
+  }
+  modalCaptionSelect.addEventListener('change', ()=>{
+    if(modalCaptionSelect.value === '__custom__'){
+      const txt = prompt('내용을 직접 입력하세요') || '';
+      buildCaptionOptions(txt);
+      modalCaptionSelect.value = txt;
+    }
+  });
+
+  function openBCategoryModal(catIdx){
+    modalMode = {type:'B', cat:catIdx};
+    modalPhotos = currentDay.B[catIdx].photos.map(p=>({dataUrl:p.dataUrl}));
+    modalTitle.textContent = `사진대지 · ${B_CATEGORIES[catIdx]}`;
+    modalCaptionWrap.style.display = 'none';
+    renderModalPhotoGrid(null);
+    modalOverlay.classList.add('show');
+  }
+
+  function renderModalPhotoGrid(maxCount){
+    modalPhotoGrid.innerHTML = '';
+    modalPhotos.forEach((p, idx)=>{
+      const slot = document.createElement('div');
+      slot.className = 'modal-photo-slot';
+      slot.innerHTML = `<img src="${p.dataUrl}"><button class="rm-btn" data-idx="${idx}">✕</button>`;
+      modalPhotoGrid.appendChild(slot);
+    });
+    if(!maxCount || modalPhotos.length < maxCount){
+      const addBtn = document.createElement('div');
+      addBtn.className = 'add-photo-btn';
+      addBtn.innerHTML = '<div class="plus">＋</div><div>사진 추가</div>';
+      addBtn.addEventListener('click', ()=>modalFileInput.click());
+      modalPhotoGrid.appendChild(addBtn);
+    }
+    modalPhotoGrid.querySelectorAll('.rm-btn').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        modalPhotos.splice(parseInt(b.dataset.idx),1);
+        renderModalPhotoGrid(maxCount);
+      });
+    });
+  }
+
+  modalFileInput.addEventListener('change', async (e)=>{
+    const files = Array.from(e.target.files || []);
+    const maxCount = modalMode && modalMode.type === 'A' ? 1 : null;
+    for(const f of files){
+      if(maxCount && modalPhotos.length >= maxCount) break;
+      try{
+        const dataUrl = await compressFile(f, 1000);
+        modalPhotos.push({dataUrl});
+      }catch(err){ console.error(err); }
+    }
+    e.target.value = '';
+    renderModalPhotoGrid(maxCount);
+  });
+
+  document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+  function closeModal(){ modalOverlay.classList.remove('show'); modalMode = null; modalPhotos = []; }
+
+  document.getElementById('modalSaveBtn').addEventListener('click', async ()=>{
+    if(!modalMode) return;
+    const btn = document.getElementById('modalSaveBtn');
+    btn.disabled = true; btn.textContent = '저장 중...';
+    try{
+      if(modalMode.type === 'A'){
+        if(modalPhotos.length === 0){
+          currentDay.A[modalMode.slot] = null;
+        } else {
+          const cap = modalCaptionSelect.value || '';
+          currentDay.A[modalMode.slot] = { dataUrl: modalPhotos[0].dataUrl, caption: cap };
+        }
+      } else {
+        currentDay.B[modalMode.cat].photos = modalPhotos.map(p=>({dataUrl:p.dataUrl}));
+      }
+      const ok = await saveDay(registerDate, currentDay);
+      if(!ok){ toast('저장 실패. 다시 시도해주세요'); return; }
+      toast('저장 완료');
+      renderASlots(); renderBStatus();
+      closeModal();
+    } finally {
+      btn.disabled = false; btn.textContent = '저장';
+    }
+  });
+
+  (async function boot(){
+    await loadSettings();
+    await refreshRegisterDay();
+  })();
+
+})();
+</script>
+</body>
+</html>
