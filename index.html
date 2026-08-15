@@ -218,15 +218,6 @@
       <div id="exportItemsList"></div>
       <div class="note-box" style="margin-top:4px;">항목을 체크하지 않고 바로 내보내면, 사진이 등록된 항목이 전부 자동으로 포함됩니다.</div>
 
-      <div id="coverFieldsWrap">
-        <label class="field-label">담당</label>
-        <input type="text" id="coverDamdang">
-        <label class="field-label">안전보건책임자</label>
-        <input type="text" id="coverAnjeon">
-        <label class="field-label">현장소장</label>
-        <input type="text" id="coverSojang">
-      </div>
-
       <button class="export-all-btn" id="exportXlsxBtn" style="margin-top:16px;"><span class="icon">📥</span><span>엑셀로 내보내기</span></button>
 
       <div id="exportPreview"></div>
@@ -458,9 +449,6 @@
     document.getElementById('settingSiteName').value = settings.siteName;
     document.getElementById('settingCompany').value = settings.company;
     document.getElementById('logoPreview').src = settings.logo || DEFAULT_LOGO;
-    document.getElementById('coverDamdang').value = settings.damdang || '';
-    document.getElementById('coverAnjeon').value = settings.anjeon || '';
-    document.getElementById('coverSojang').value = settings.sojang || '';
     renderPhraseList();
   }
 
@@ -488,9 +476,6 @@
     settings.siteName = document.getElementById('settingSiteName').value;
     settings.company = document.getElementById('settingCompany').value;
     if(settings._pendingLogo){ settings.logo = settings._pendingLogo; delete settings._pendingLogo; }
-    settings.damdang = document.getElementById('coverDamdang').value;
-    settings.anjeon = document.getElementById('coverAnjeon').value;
-    settings.sojang = document.getElementById('coverSojang').value;
     const ok = await sSet('settings', JSON.stringify(settings));
     toast(ok ? '설정 저장 완료' : '저장 실패');
     document.querySelector('.app-header .sub').textContent = settings.siteName + ' · 촬영-등록-엑셀 붙여넣기';
@@ -727,10 +712,11 @@
       ctx.fillText(values[c], tX+c*colW+colW/2, tY+rowH*1.5);
     }
 
-    // logo (exact box from source file)
+    // logo — box enlarged (taller) so logos with a different aspect ratio than
+    // the original wide banner still render at a readable size, not letterboxed small
     try{
       const logoImg = await loadImage(settings.logo || DEFAULT_LOGO);
-      const { dx, dy, dw, dh } = drawContainFit(ctx, logoImg, 0.2127*PAGE_W, 0.7411*PAGE_H, 0.5911*PAGE_W, 0.0538*PAGE_H);
+      drawContainFit(ctx, logoImg, 0.15*PAGE_W, 0.685*PAGE_H, 0.70*PAGE_W, 0.10*PAGE_H);
     }catch(e){ console.error('logo draw failed', e); }
 
     // site name (28pt bold)
@@ -861,25 +847,40 @@
     });
   }
 
-  async function generateXlsxFile(pages){
+  function sanitizeSheetName(name){
+    // Excel sheet names: max 31 chars, no \ / ? * [ ] :
+    return (String(name||'sheet')).replace(/[\\\/\?\*\[\]:]/g,'_').slice(0,31) || 'sheet';
+  }
+
+  async function generateXlsxFile(pages, names){
     const workbook = new ExcelJS.Workbook();
     // A4 at 96dpi (794 x 1123 px) — canvas is already at the A4 aspect ratio,
     // so scaling to this size fills a real A4 page edge-to-edge, no shrinking.
     const A4W = 794, A4H = 1123;
+    const usedNames = new Set();
     pages.forEach((canvas, idx)=>{
-      const ws = workbook.addWorksheet('page'+(idx+1));
+      let base = sanitizeSheetName((names && names[idx]) || ('page'+(idx+1)));
+      let sheetName = base, n = 2;
+      while(usedNames.has(sheetName)){
+        sheetName = sanitizeSheetName(base.slice(0,28) + '_' + n);
+        n++;
+      }
+      usedNames.add(sheetName);
+      const ws = workbook.addWorksheet(sheetName);
       ws.views = [{ showGridLines:false }];
       ws.pageSetup = {
         paperSize: 9, // A4
         orientation: 'portrait',
         fitToPage: true, fitToWidth: 1, fitToHeight: 1,
         margins: { left:0.15, right:0.15, top:0.15, bottom:0.15, header:0, footer:0 },
-        printArea: 'A1:P60'
+        printArea: 'A1:L45',
+        showGridLines: false,     // don't print cell gridlines (this was the black border)
+        showRowColHeaders: false  // don't print row/column headers either
       };
       // give the sheet real cell dimensions covering the image area, so the
       // picture is part of the used range and prints/copies as a full A4 page
-      for(let c=1;c<=16;c++) ws.getColumn(c).width = 8.8;
-      for(let r=1;r<=60;r++) ws.getRow(r).height = 18.7;
+      for(let c=1;c<=12;c++) ws.getColumn(c).width = 8.8;
+      for(let r=1;r<=45;r++) ws.getRow(r).height = 18.7;
       const dataUrl = canvas.toDataURL('image/png');
       const base64 = dataUrl.split(',')[1];
       const imgId = workbook.addImage({ base64, extension:'png' });
@@ -920,31 +921,38 @@
     btn.disabled = true; btn.querySelector('span:last-child').textContent = '엑셀 만드는 중...';
 
     try{
-      const damdang = document.getElementById('coverDamdang').value;
-      const anjeon = document.getElementById('coverAnjeon').value;
-      const sojang = document.getElementById('coverSojang').value;
+      // 담당/안전보건책임자/현장소장 칸은 입력창 없이, 인쇄 후 손으로 기입하도록 빈칸으로 둡니다.
+      const damdang = '', anjeon = '', sojang = '';
 
       const pages = [];
+      const pageNames = [];
       for(const entry of entries){
         if(entry.formType === 'A'){
           pages.push(await renderCoverCanvas(entry, damdang, anjeon, sojang));
+          pageNames.push('표지');
           const photos = entry.photos;
           let pageNum = 1;
           for(let i=0;i<photos.length;i+=4){
             const chunk = photos.slice(i,i+4);
-            pages.push(await renderAPhotoGridCanvas(chunk, entry, pageNum++));
+            pages.push(await renderAPhotoGridCanvas(chunk, entry, pageNum));
+            pageNames.push(`사진대지_${pageNum}`);
+            pageNum++;
           }
         } else {
           const photos = entry.photos;
+          const totalChunks = Math.ceil(photos.length/2);
+          let pageNum = 1;
           for(let i=0;i<photos.length;i+=2){
             const chunk = photos.slice(i,i+2);
             pages.push(await renderBCategoryPageCanvas(chunk, entry));
+            pageNames.push(totalChunks > 1 ? `${entry.category}_${pageNum}` : entry.category);
+            pageNum++;
           }
         }
       }
       generatedPages = pages;
       renderExportPreviewFromCanvases(pages);
-      await generateXlsxFile(pages);
+      await generateXlsxFile(pages, pageNames);
       toast('엑셀 파일 다운로드 완료');
     }catch(e){
       console.error('export failed', e);
