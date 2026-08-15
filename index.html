@@ -685,42 +685,34 @@
     ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,PAGE_W,PAGE_H);
     ctx.strokeStyle = '#B9C1C8'; ctx.lineWidth = 1; ctx.strokeRect(0.5,0.5,PAGE_W-1,PAGE_H-1);
 
-    // decorative diagonal corner shapes (top-left)
-    ctx.fillStyle = '#DBDFE2';
+    // decorative "flag" corner shape, top-left, matching the sample's single-tone wavy diagonal
+    const flagPts = [[0,0],[0.25,0],[0.175,0.195],[0.125,0.29],[0.105,0.47],[0,0.405]];
+    ctx.fillStyle = '#D7DBDE';
     ctx.beginPath();
-    ctx.moveTo(0,0); ctx.lineTo(PAGE_W*0.30,0); ctx.lineTo(PAGE_W*0.10,PAGE_H*0.34); ctx.lineTo(0,PAGE_H*0.30);
+    flagPts.forEach(([fx,fy],i)=>{ const x=fx*PAGE_W, y=fy*PAGE_H; i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
     ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#C6CBD0';
+    // mirrored bottom-right
     ctx.beginPath();
-    ctx.moveTo(0,PAGE_H*0.015); ctx.lineTo(PAGE_W*0.135,0); ctx.lineTo(PAGE_W*0.05,PAGE_H*0.155);
-    ctx.closePath(); ctx.fill();
-    // mirrored (bottom-right)
-    ctx.fillStyle = '#DBDFE2';
-    ctx.beginPath();
-    ctx.moveTo(PAGE_W,PAGE_H); ctx.lineTo(PAGE_W-PAGE_W*0.30,PAGE_H); ctx.lineTo(PAGE_W-PAGE_W*0.10,PAGE_H-PAGE_H*0.34); ctx.lineTo(PAGE_W,PAGE_H-PAGE_H*0.30);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#C6CBD0';
-    ctx.beginPath();
-    ctx.moveTo(PAGE_W,PAGE_H-PAGE_H*0.015); ctx.lineTo(PAGE_W-PAGE_W*0.135,PAGE_H); ctx.lineTo(PAGE_W-PAGE_W*0.05,PAGE_H-PAGE_H*0.155);
+    flagPts.forEach(([fx,fy],i)=>{ const x=PAGE_W-fx*PAGE_W, y=PAGE_H-fy*PAGE_H; i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
     ctx.closePath(); ctx.fill();
 
     // title box
-    const boxX = PAGE_W*0.15, boxY = PAGE_H*0.205, boxW = PAGE_W*0.70, boxH = PAGE_H*0.085;
+    const boxX = PAGE_W*0.12, boxY = PAGE_H*0.195, boxW = PAGE_W*0.76, boxH = PAGE_H*0.126;
     ctx.strokeStyle = '#2255A4'; ctx.lineWidth = 3;
     ctx.strokeRect(boxX, boxY, boxW, boxH);
     ctx.fillStyle = '#16305B';
-    ctx.font = 'bold 30px "Malgun Gothic","Apple SD Gothic Neo",sans-serif';
+    ctx.font = 'bold 34px "Malgun Gothic","Apple SD Gothic Neo",sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('일일 작업계획서 점검 결과 보고', PAGE_W/2, boxY+boxH/2);
 
     // date
     ctx.fillStyle = '#1B2126';
-    ctx.font = 'bold 32px "Malgun Gothic","Apple SD Gothic Neo",sans-serif';
+    ctx.font = 'bold 34px "Malgun Gothic","Apple SD Gothic Neo",sans-serif';
     const [dy,dm,dd] = entry.date.split('-');
-    ctx.fillText(`${dy}년 ${parseInt(dm)}월 ${parseInt(dd)}일`, PAGE_W/2, PAGE_H*0.40);
+    ctx.fillText(`${dy}년 ${parseInt(dm)}월 ${parseInt(dd)}일`, PAGE_W/2, PAGE_H*0.529);
 
     // table: 담당 / 안전보건책임자 / 현장소장
-    const tW = PAGE_W*0.60, tX = (PAGE_W-tW)/2, tY = PAGE_H*0.47, rowH = PAGE_H*0.045, colW = tW/3;
+    const tW = PAGE_W*0.542, tX = PAGE_W*0.229, tY = PAGE_H*0.590, rowH = PAGE_H*0.057, colW = tW/3;
     const headers = ['담당','안전보건책임자','현장소장'];
     const values = [damdang||'', anjeon||'', sojang||''];
     for(let c=0;c<3;c++){
@@ -728,22 +720,22 @@
       ctx.fillRect(tX+c*colW, tY, colW, rowH);
       ctx.strokeStyle = '#333'; ctx.lineWidth = 1.2;
       ctx.strokeRect(tX+c*colW, tY, colW, rowH);
-      ctx.fillStyle = '#222'; ctx.font = 'bold 14px "Malgun Gothic",sans-serif';
+      ctx.fillStyle = '#222'; ctx.font = 'bold 16px "Malgun Gothic",sans-serif';
       ctx.fillText(headers[c], tX+c*colW+colW/2, tY+rowH/2);
       ctx.strokeRect(tX+c*colW, tY+rowH, colW, rowH);
-      ctx.font = '14px "Malgun Gothic",sans-serif';
+      ctx.font = '15px "Malgun Gothic",sans-serif';
       ctx.fillText(values[c], tX+c*colW+colW/2, tY+rowH*1.5);
     }
 
     // logo + site name
     try{
       const logoImg = await loadImage(settings.logo || DEFAULT_LOGO);
-      const logoH = 44;
+      const logoH = PAGE_H*0.046;
       const logoW = logoImg.width * (logoH/logoImg.height);
-      ctx.drawImage(logoImg, PAGE_W/2 - logoW/2, PAGE_H*0.635, logoW, logoH);
-      ctx.font = 'bold 21px "Malgun Gothic",sans-serif';
+      ctx.drawImage(logoImg, PAGE_W/2 - logoW/2, PAGE_H*0.721, logoW, logoH);
+      ctx.font = 'bold 24px "Malgun Gothic",sans-serif';
       ctx.fillStyle = '#222';
-      ctx.fillText(settings.siteName, PAGE_W/2, PAGE_H*0.635 + logoH + 28);
+      ctx.fillText(settings.siteName, PAGE_W/2, PAGE_H*0.826);
     }catch(e){ console.error('logo draw failed', e); }
 
     return canvas;
@@ -840,8 +832,8 @@
       }catch(e){ console.error('photo draw failed', e); }
 
       const capY = blockY+blockH-capH;
-      ctx.strokeStyle = '#16305B'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(boxX,capY); ctx.lineTo(boxX+boxW,capY); ctx.stroke();
+      ctx.strokeStyle = '#16305B'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(boxX, capY, boxW, capH);
       ctx.fillStyle = '#16305B'; ctx.font = `bold ${Math.round(capH*0.42)}px "Malgun Gothic",sans-serif`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       const [dy2,dm2,dd2] = entry.date.split('-');
@@ -923,13 +915,22 @@
     btn.disabled = true; btn.textContent = '엑셀 생성 중...';
     try{
       const workbook = new ExcelJS.Workbook();
+      // A4 at 96dpi (794 x 1123 px) — canvas is already at the A4 aspect ratio (900x1273),
+      // so scaling to this size fills a real A4 page edge-to-edge, no shrinking.
+      const A4W = 794, A4H = 1123;
       generatedPages.forEach((canvas, idx)=>{
         const ws = workbook.addWorksheet('page'+(idx+1));
         ws.views = [{ showGridLines:false }];
+        ws.pageSetup = {
+          paperSize: 9, // A4
+          orientation: 'portrait',
+          fitToPage: true, fitToWidth: 1, fitToHeight: 1,
+          margins: { left:0.15, right:0.15, top:0.15, bottom:0.15, header:0, footer:0 }
+        };
         const dataUrl = canvas.toDataURL('image/png');
         const base64 = dataUrl.split(',')[1];
         const imgId = workbook.addImage({ base64, extension:'png' });
-        ws.addImage(imgId, { tl:{col:0,row:0}, ext:{ width: canvas.width*0.72, height: canvas.height*0.72 } });
+        ws.addImage(imgId, { tl:{col:0,row:0}, ext:{ width: A4W, height: A4H } });
       });
       const buf = await workbook.xlsx.writeBuffer();
       const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
