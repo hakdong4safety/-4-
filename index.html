@@ -716,7 +716,7 @@
     // the original wide banner still render at a readable size, not letterboxed small
     try{
       const logoImg = await loadImage(settings.logo || DEFAULT_LOGO);
-      drawContainFit(ctx, logoImg, 0.15*PAGE_W, 0.685*PAGE_H, 0.70*PAGE_W, 0.10*PAGE_H);
+      drawContainFit(ctx, logoImg, 0.175*PAGE_W, 0.718*PAGE_H, 0.65*PAGE_W, 0.075*PAGE_H);
     }catch(e){ console.error('logo draw failed', e); }
 
     // site name (28pt bold)
