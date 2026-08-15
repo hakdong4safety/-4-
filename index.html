@@ -2,8 +2,16 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>현장 안전점검 사진대지 시스템</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#132A46">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="사진대지">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -263,6 +271,13 @@
   <!-- ============ SETTINGS PANEL ============ -->
   <div class="panel" id="panel-settings">
     <div class="narrow-wrap-sm">
+      <div class="card" id="installCard" style="display:none;">
+        <div class="card-title">앱 설치</div>
+        <div style="font-size:12.5px;color:var(--text-dim);line-height:1.6;margin-bottom:10px;">
+          홈 화면에 앱처럼 설치해두면 브라우저 주소창 없이 바로 열 수 있어요.
+        </div>
+        <button class="btn btn-amber btn-block" id="installAppBtn">📲 홈 화면에 설치</button>
+      </div>
       <div class="card">
         <div class="card-title">현장 정보</div>
         <label class="field-label">현장명</label>
@@ -1276,6 +1291,26 @@
     await loadSettings();
     await refreshRegisterDay();
   })();
+
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', ()=>{
+      navigator.serviceWorker.register('sw.js').catch(e=>console.error('sw register failed', e));
+    });
+  }
+
+  let deferredInstallPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e)=>{
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    document.getElementById('installCard').style.display = 'block';
+  });
+  document.getElementById('installAppBtn').addEventListener('click', async ()=>{
+    if(!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    document.getElementById('installCard').style.display = 'none';
+  });
 
 })();
 </script>
