@@ -431,7 +431,13 @@
     toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
   }
 
-  function todayStr(){ const d=new Date(); return d.toISOString().slice(0,10); }
+  function todayStr(){
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${dd}`; // local date, not UTC — avoids the "shows yesterday" bug
+  }
   function fmtDateDot(iso){ if(!iso) return ''; const [y,m,d]=iso.split('-'); return y+'.'+m+'.'+d; }
   function escapeAttr(s){ return (s||'').replace(/"/g,'&quot;'); }
   function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
