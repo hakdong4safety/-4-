@@ -1003,7 +1003,26 @@
         margins: { left:MARGIN_IN, right:MARGIN_IN, top:MARGIN_IN, bottom:MARGIN_IN, header:0, footer:0 },
         printArea,
         showGridLines: false,     // don't print cell gridlines (this was the black border)
-        showRowColHeaders: false  // don't print row/column headers either
+        showRowColHeaders: false, // don't print row/column headers either
+        horizontalCentered: true, // 페이지 가운데 맞춤 (가로)
+        verticalCentered: true    // 페이지 가운데 맞춤 (세로)
+      };
+    }
+
+    // 사진대지 sheets print/copy on standard A4 paper (matching the office's
+    // real 사진대지.xlsx page setup), not the custom 22.4x35.49cm size.
+    function a4PageSetup(ws, printArea){
+      ws.views = [{ showGridLines:false }];
+      ws.pageSetup = {
+        paperSize: 9, // A4
+        orientation: 'portrait',
+        fitToPage: true, fitToWidth: 1, fitToHeight: 1,
+        margins: { left:0.7, right:0.7, top:0.75, bottom:0.75, header:0.3, footer:0.3 },
+        printArea,
+        showGridLines: false,
+        showRowColHeaders: false,
+        horizontalCentered: true, // 페이지 가운데 맞춤 (가로)
+        verticalCentered: true    // 페이지 가운데 맞춤 (세로)
       };
     }
 
@@ -1025,7 +1044,7 @@
         const ws = workbook.addWorksheet(sheetName);
         ws.properties.defaultRowHeight = 17.4;
         ws.getColumn(1).width = 1.5;
-        commonPageSetup(ws, 'B1:J43');
+        a4PageSetup(ws, 'B1:J43');
 
         ws.mergeCells('B1:J2');
         ws.mergeCells('B3:J19');
