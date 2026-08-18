@@ -1088,16 +1088,38 @@
       }
 
       // 'image' kind: canvas-rendered page (cover / 안전점검 사진대지 grid)
+      // Cover ("표지") and grid ("사진대지_N") pages use different custom page sizes.
+      const isCover = spec.name === '표지';
+      const widthCm = isCover ? 18.66 : 16.71;
+      const heightCm = 30.99;
+      const lastCol = isCover ? 10 : 9; // J vs I
+      const lastColLetter = isCover ? 'J' : 'I';
+      const marginIn = 0.2;
+      const pxW = Math.round((widthCm/2.54 - marginIn*2) * 96);
+      const pxH = Math.round((heightCm/2.54 - marginIn*2) * 96);
+
       const ws = workbook.addWorksheet(sheetName);
-      commonPageSetup(ws, 'A1:L45');
+      ws.views = [{ showGridLines:false }];
+      ws.pageSetup = {
+        paperWidth: `${widthCm}cm`,
+        paperHeight: `${heightCm}cm`,
+        orientation: 'portrait',
+        fitToPage: true, fitToWidth: 1, fitToHeight: 1,
+        margins: { left:marginIn, right:marginIn, top:marginIn, bottom:marginIn, header:0, footer:0 },
+        printArea: `A1:${lastColLetter}45`,
+        showGridLines: false,
+        showRowColHeaders: false,
+        horizontalCentered: true,
+        verticalCentered: true
+      };
       // give the sheet real cell dimensions covering the image area, so the
       // picture is part of the used range and prints/copies as a full page
-      for(let c=1;c<=12;c++) ws.getColumn(c).width = 8.8;
+      for(let c=1;c<=lastCol;c++) ws.getColumn(c).width = 8.8;
       for(let r=1;r<=45;r++) ws.getRow(r).height = 18.7;
       const dataUrl = spec.canvas.toDataURL('image/png');
       const base64 = dataUrl.split(',')[1];
       const imgId = workbook.addImage({ base64, extension:'png' });
-      ws.addImage(imgId, { tl:{col:0,row:0}, ext:{ width: A4W, height: A4H } });
+      ws.addImage(imgId, { tl:{col:0,row:0}, ext:{ width: pxW, height: pxH } });
     }
     const buf = await workbook.xlsx.writeBuffer();
     const blob = new Blob([buf], { type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -1358,6 +1380,12 @@
   if('serviceWorker' in navigator){
     window.addEventListener('load', ()=>{
       navigator.serviceWorker.register('sw.js').catch(e=>console.error('sw register failed', e));
+    });
+    let swRefreshed = false;
+    navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+      if(swRefreshed) return;
+      swRefreshed = true;
+      window.location.reload();
     });
   }
 
