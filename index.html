@@ -1089,23 +1089,22 @@
 
       // 'image' kind: canvas-rendered page (cover / 안전점검 사진대지 grid)
       // Cover ("표지") and grid ("사진대지_N") pages use different custom page sizes.
+      // Matches the office's real 일일_작업계획서_점검_결과_보고.xlsx page setup:
+      // standard A4 paper, not a custom size — with its exact margins.
       const isCover = spec.name === '표지';
-      const widthCm = isCover ? 18.66 : 16.71;
-      const heightCm = 30.99;
       const lastCol = isCover ? 10 : 9; // J vs I
       const lastColLetter = isCover ? 'J' : 'I';
-      const marginIn = 0.2;
-      const pxW = Math.round((widthCm/2.54 - marginIn*2) * 96);
-      const pxH = Math.round((heightCm/2.54 - marginIn*2) * 96);
+      const M_LR = 0.25, M_TB = 0.75, M_HF = 0.3;
+      const pxW = Math.round((8.2677 - M_LR*2) * 96);
+      const pxH = Math.round((11.6929 - M_TB*2) * 96);
 
       const ws = workbook.addWorksheet(sheetName);
       ws.views = [{ showGridLines:false }];
       ws.pageSetup = {
-        paperWidth: `${widthCm}cm`,
-        paperHeight: `${heightCm}cm`,
+        paperSize: 9, // A4
         orientation: 'portrait',
         fitToPage: true, fitToWidth: 1, fitToHeight: 1,
-        margins: { left:marginIn, right:marginIn, top:marginIn, bottom:marginIn, header:0, footer:0 },
+        margins: { left:M_LR, right:M_LR, top:M_TB, bottom:M_TB, header:M_HF, footer:M_HF },
         printArea: `A1:${lastColLetter}45`,
         showGridLines: false,
         showRowColHeaders: false,
