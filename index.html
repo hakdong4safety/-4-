@@ -1064,8 +1064,15 @@
       const lastCol = isCover ? 10 : 9; // J vs I
       const lastColLetter = isCover ? 'J' : 'I';
       const M_LR = 0.25, M_TB = 0.75, M_HF = 0.3;
-      const pxW = Math.round((8.2677 - M_LR*2) * 96);
-      const pxH = Math.round((11.6929 - M_TB*2) * 96);
+      const COL_W_CHARS = 8.8, ROW_H_PT = 18.7;
+      // ext MUST match the actual pixel size of the declared column/row range —
+      // if the image is bigger than that range it overflows past the print
+      // area and gets clipped when printed. This is computed from the same
+      // column-width/row-height values set below, not a separate paper-size guess.
+      const colWidthPx = COL_W_CHARS*7 + 5;
+      const rowHeightPx = ROW_H_PT * 96/72;
+      const pxW = Math.round(colWidthPx * lastCol);
+      const pxH = Math.round(rowHeightPx * 45);
 
       const ws = workbook.addWorksheet(sheetName);
       ws.views = [{ showGridLines:false }];
@@ -1082,8 +1089,8 @@
       };
       // give the sheet real cell dimensions covering the image area, so the
       // picture is part of the used range and prints/copies as a full page
-      for(let c=1;c<=lastCol;c++) ws.getColumn(c).width = 8.8;
-      for(let r=1;r<=45;r++) ws.getRow(r).height = 18.7;
+      for(let c=1;c<=lastCol;c++) ws.getColumn(c).width = COL_W_CHARS;
+      for(let r=1;r<=45;r++) ws.getRow(r).height = ROW_H_PT;
       const dataUrl = spec.canvas.toDataURL('image/png');
       const base64 = dataUrl.split(',')[1];
       const imgId = workbook.addImage({ base64, extension:'png' });
